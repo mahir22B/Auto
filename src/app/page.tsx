@@ -1,6 +1,7 @@
 'use client';
 
 import FlowBuilder from '@/components/flow/FlowBuilder';
+import { Button } from '@/components/ui/button';
 import { Workflow } from '@/lib/gdrive/types';
 
 export default function WorkflowPage() {
@@ -9,29 +10,39 @@ export default function WorkflowPage() {
     console.log('Saving workflow:', workflow);
   };
 
-    // const handleAuth = async () => {
-    //   try {
-    //     // Call our connect endpoint
-    //     const response = await fetch('/api/auth/gmail/connect');
-    //     const data = await response.json();
-        
-    //     if (data.url) {
-    //       // Redirect to Google's auth page
-    //       window.location.href = data.url;
-    //     } else {
-    //       console.error('Failed to get auth URL');
-    //     }
-    //   } catch (error) {
-    //     console.error('Auth error:', error);
-    //   }
-    // };
+  // const handleGmailAuth = async () => {
+  //   try {
+  //     const response = await fetch('/api/auth/google/connect?service=gmail');
+  //     const data = await response.json();
+  //     if (data.url) {
+  //       window.location.href = data.url;
+  //     }
+  //   } catch (error) {
+  //     console.error('Auth error:', error);
+  //   }
+  // };
+
+  // const handleDriveAuth = async () => {
+  //   try {
+  //     const response = await fetch('/api/auth/google/connect?service=drive');
+  //     const data = await response.json();
+  //     if (data.url) {
+  //       window.location.href = data.url;
+  //     }
+  //   } catch (error) {
+  //     console.error('Auth error:', error);
+  //   }
+  // };
 
   return (
     <div className="h-screen flex flex-col">
       
       <main className="flex-1">
         <FlowBuilder onSave={handleSave} />
-        
+
+        {/* <Button onClick={handleGmailAuth}>Login with Gmail</Button>
+        <Button onClick={handleDriveAuth}>Login with Drive</Button>
+         */}
       </main>
     </div>
   );
