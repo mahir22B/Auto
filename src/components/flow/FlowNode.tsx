@@ -18,6 +18,8 @@ interface FlowNodeProps {
     config: NodeConfig;
     isConfigured: boolean;
     onDelete: (id: string) => void;
+    isGmailAuthenticated?: boolean;
+    onGmailAuth?: () => void;
   };
   id: string;
   isConnectable: boolean;
@@ -41,13 +43,62 @@ const NODE_TYPES = {
 const FlowNode = ({ id, data, isConnectable, selected, updateNode }: FlowNodeProps) => {
   const [isConfiguring, setIsConfiguring] = React.useState(false);
   const [config, setConfig] = React.useState<NodeConfig>(data.config);
+  const [showAuthPrompt, setShowAuthPrompt] = React.useState(false);
   
   const nodeType = config.type;
   const nodeData = NODE_TYPES[nodeType as keyof typeof NODE_TYPES];
   const actions = nodeData.actions;
 
-  const handleActionSelect = (action: string) => {
-    setConfig({ ...config, action });
+  // Effect to watch for authentication changes
+  React.useEffect(() => {
+    console.log('Auth state changed in FlowNode:', {
+      isAuthenticated: data.isGmailAuthenticated,
+      showAuthPrompt,
+      nodeId: id
+    });
+
+    // Only proceed if this is a Gmail node
+    if (nodeType === 'gmail' && data.isGmailAuthenticated) {
+      const pendingAction = localStorage.getItem('pending_gmail_action');
+      console.log('Checking pending action:', pendingAction);
+      
+      if (pendingAction) {
+        try {
+          const { nodeId, action } = JSON.parse(pendingAction);
+          console.log('Parsed pending action:', { nodeId, action, currentId: id });
+          
+          if (nodeId === id) {
+            console.log('Moving to configuration screen for action:', action);
+            localStorage.removeItem('pending_gmail_action');
+            setConfig(prev => ({ ...prev, action }));
+            setIsConfiguring(true);
+            setShowAuthPrompt(false);
+          }
+        } catch (error) {
+          console.error('Error parsing pending action:', error);
+        }
+      }
+    }
+  }, [data.isGmailAuthenticated, nodeType, id]);
+
+  const handleActionSelect = async (action: string) => {
+    console.log('Action selected:', action, 'Auth state:', data.isGmailAuthenticated);
+    
+    if (nodeType === 'gmail') {
+      if (!data.isGmailAuthenticated) {
+        console.log('Storing pending action:', { nodeId: id, action });
+        localStorage.setItem('pending_gmail_action', JSON.stringify({
+          nodeId: id,
+          action: action
+        }));
+        
+        setShowAuthPrompt(true);
+        return;
+      }
+    }
+    
+    console.log('Moving directly to configuration');
+    setConfig(prev => ({ ...prev, action }));
     setIsConfiguring(true);
   };
 
@@ -76,6 +127,33 @@ const FlowNode = ({ id, data, isConnectable, selected, updateNode }: FlowNodePro
       </Button>
     </div>
   );
+
+  // Show authentication prompt if needed
+  if (showAuthPrompt) {
+    return (
+      <Card className="p-4 w-80">
+        <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
+        
+        {renderHeader()}
+
+        <div className="space-y-4">
+          <div className="text-center">
+            <p className="text-gray-700 mb-4">
+              Authentication required to use Gmail actions
+            </p>
+            <Button 
+              className="w-full bg-black"
+              onClick={data.onGmailAuth}
+            >
+              Login with Gmail
+            </Button>
+          </div>
+        </div>
+
+        <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} />
+      </Card>
+    );
+  }
 
   // Show configuration form if an action is selected and we're configuring
   if (isConfiguring && config.action) {

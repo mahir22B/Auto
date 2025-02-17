@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useMemo } from "react";
+import React, { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -13,8 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Plus, X } from "lucide-react";
 import FlowNode from "./FlowNode";
 import CustomEdge from "./CustomEdge";
+import { Workflow } from "@/lib/gdrive/types";
 
-// Define these outside the component
 const AVAILABLE_NODES = [
   {
     id: "gdrive",
@@ -30,13 +30,11 @@ const AVAILABLE_NODES = [
   }
 ] as const;
 
-// Define nodeTypes outside the component
 const nodeTypes = {
   gdrive: FlowNode,
   gmail: FlowNode,
 };
 
-// Define edgeTypes outside the component
 const edgeTypes = {
   custom: CustomEdge,
 };
@@ -44,7 +42,13 @@ const edgeTypes = {
 let id = 0;
 const getId = () => `node_${id++}`;
 
-const FlowBuilder = () => {
+interface FlowBuilderProps {
+  onSave: (workflow: Workflow) => void;
+  isGmailAuthenticated: boolean;
+  onGmailAuth: () => void;
+}
+
+const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderProps) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -52,6 +56,23 @@ const FlowBuilder = () => {
     React.useState<ReactFlowInstance | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Update Gmail nodes when auth state changes
+  useEffect(() => {
+    setNodes(nds => nds.map(node => {
+      if (node.type === 'gmail') {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            key: `gmail-${isGmailAuthenticated}`,
+            isGmailAuthenticated
+          }
+        };
+      }
+      return node;
+    }));
+  }, [isGmailAuthenticated, setNodes]);
 
   const filteredNodes = useMemo(() => 
     AVAILABLE_NODES.filter(
@@ -64,7 +85,6 @@ const FlowBuilder = () => {
 
   const onConnect = useCallback(
     (params: Connection) => {
-      // Set custom type for new edges
       const edge = { ...params, type: 'custom' };
       setEdges((eds) => addEdge(edge, eds));
     },
@@ -95,12 +115,15 @@ const FlowBuilder = () => {
         type: nodeType,
         position,
         data: {
+          key: nodeType === 'gmail' ? `gmail-${isGmailAuthenticated}` : undefined,
           config: { 
             type: nodeType,
             action: defaultActions[nodeType as keyof typeof defaultActions]
           },
           isConfigured: false,
           onDelete: handleDeleteNode,
+          isGmailAuthenticated,
+          onGmailAuth,
         },
         sourcePosition: 'bottom',
         targetPosition: 'top',
@@ -108,7 +131,7 @@ const FlowBuilder = () => {
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [setNodes, handleDeleteNode]
+    [setNodes, handleDeleteNode, isGmailAuthenticated, onGmailAuth]
   );
 
   const onDrop = useCallback(
@@ -151,10 +174,8 @@ const FlowBuilder = () => {
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setReactFlowInstance(instance);
-    if (typeof window !== 'undefined') {
-      (window as any).flowInstance = instance;
-    }
   }, []);
+
   return (
     <div className="h-full relative">
       <Button
@@ -231,8 +252,7 @@ const FlowBuilder = () => {
           deleteKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >
-          <Background 
-          />
+          <Background />
         </ReactFlow>
       </div>
     </div>
