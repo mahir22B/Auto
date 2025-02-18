@@ -14,25 +14,12 @@ import { Plus, X } from "lucide-react";
 import FlowNode from "./FlowNode";
 import CustomEdge from "./CustomEdge";
 import { Workflow } from "@/lib/gdrive/types";
-
-const AVAILABLE_NODES = [
-  {
-    id: "gdrive",
-    name: "Google Drive",
-    description: "Manage files and folders",
-    icon: "/icons/gdrive.svg",
-  },
-  {
-    id: "gmail",
-    name: "Gmail",
-    description: "Email operations",
-    icon: "/icons/gmail.svg",
-  }
-] as const;
+import { SERVICES } from "@/lib/services";
 
 const nodeTypes = {
   gdrive: FlowNode,
   gmail: FlowNode,
+  sheets: FlowNode
 };
 
 const edgeTypes = {
@@ -44,11 +31,15 @@ const getId = () => `node_${id++}`;
 
 interface FlowBuilderProps {
   onSave: (workflow: Workflow) => void;
-  isGmailAuthenticated: boolean;
-  onGmailAuth: () => void;
+  authState: Record<string, { isAuthenticated: boolean; tokens?: any }>;
+  onAuth: (service: string) => void;
 }
 
-const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderProps) => {
+const FlowBuilder = ({ 
+  onSave, 
+  authState, 
+  onAuth 
+}: FlowBuilderProps) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -57,28 +48,28 @@ const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderP
   const [showSidebar, setShowSidebar] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Update Gmail nodes when auth state changes
+  // Update nodes when auth state changes
   useEffect(() => {
     setNodes(nds => nds.map(node => {
-      if (node.type === 'gmail') {
+      if (authState[node.type]) {
         return {
           ...node,
           data: {
             ...node.data,
-            key: `gmail-${isGmailAuthenticated}`,
-            isGmailAuthenticated
+            key: `${node.type}-${authState[node.type].isAuthenticated}`,
+            authState: authState[node.type]
           }
         };
       }
       return node;
     }));
-  }, [isGmailAuthenticated, setNodes]);
+  }, [authState, setNodes]);
 
-  const filteredNodes = useMemo(() => 
-    AVAILABLE_NODES.filter(
-      (node) =>
-        node.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        node.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredServices = useMemo(() => 
+    Object.values(SERVICES).filter(
+      (service) =>
+        service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.description.toLowerCase().includes(searchTerm.toLowerCase())
     ),
     [searchTerm]
   );
@@ -104,26 +95,22 @@ const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderP
   }, [setNodes, setEdges]);
 
   const createNode = useCallback(
-    (position: { x: number; y: number }, nodeType: string) => {
-      const defaultActions = {
-        gdrive: "READ_FILE",
-        gmail: "READ_UNREAD"
-      };
-
+    (position: { x: number; y: number }, serviceId: string) => {
       const newNode = {
         id: getId(),
-        type: nodeType,
+        type: serviceId,
         position,
         data: {
-          key: nodeType === 'gmail' ? `gmail-${isGmailAuthenticated}` : undefined,
+          key: `${serviceId}-${authState[serviceId]?.isAuthenticated}`,
           config: { 
-            type: nodeType,
-            action: defaultActions[nodeType as keyof typeof defaultActions]
+            type: serviceId,
+            action: null
           },
           isConfigured: false,
           onDelete: handleDeleteNode,
-          isGmailAuthenticated,
-          onGmailAuth,
+          service: serviceId,
+          authState: authState[serviceId] || { isAuthenticated: false },
+          onAuth: () => onAuth(serviceId),
         },
         sourcePosition: 'bottom',
         targetPosition: 'top',
@@ -131,14 +118,14 @@ const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderP
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [setNodes, handleDeleteNode, isGmailAuthenticated, onGmailAuth]
+    [setNodes, handleDeleteNode, authState, onAuth]
   );
 
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
 
-      const nodeType = event.dataTransfer.getData('nodeType');
+      const serviceId = event.dataTransfer.getData('serviceId');
 
       if (!reactFlowWrapper.current || !reactFlowInstance) {
         return;
@@ -150,12 +137,12 @@ const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderP
         y: event.clientY - reactFlowBounds.top,
       });
 
-      createNode(position, nodeType);
+      createNode(position, serviceId);
     },
     [reactFlowInstance, createNode]
   );
 
-  const onNodeClick = useCallback((node: any) => {
+  const onNodeClick = useCallback((service: any) => {
     if (!reactFlowInstance || !reactFlowWrapper.current) return;
 
     const bounds = reactFlowWrapper.current.getBoundingClientRect();
@@ -169,7 +156,7 @@ const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderP
       y: center.y + Math.random() * 100 - 25,
     };
 
-    createNode(position, node.id);
+    createNode(position, service.id);
   }, [reactFlowInstance, createNode]);
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
@@ -202,30 +189,30 @@ const FlowBuilder = ({ onSave, isGmailAuthenticated, onGmailAuth }: FlowBuilderP
 
             <Input
               type="search"
-              placeholder="Search nodes..."
+              placeholder="Search services..."
               className="mb-4"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
 
             <div className="space-y-2">
-              {filteredNodes.map((node) => (
+              {filteredServices.map((service) => (
                 <div
-                  key={node.id}
+                  key={service.id}
                   className="p-6 border rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors"
                   draggable
-                  onClick={() => onNodeClick(node)}
+                  onClick={() => onNodeClick(service)}
                   onDragStart={(e) => {
                     e.dataTransfer.setData("application/reactflow", "true");
-                    e.dataTransfer.setData("nodeType", node.id);
+                    e.dataTransfer.setData("serviceId", service.id);
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <img src={node.icon} alt="" className="w-12 h-12" />
+                    <img src={service.icon} alt="" className="w-12 h-12" />
                     <div>
-                      <div className="font-medium">{node.name}</div>
+                      <div className="font-medium">{service.name}</div>
                       <div className="text-sm text-gray-500">
-                        {node.description}
+                        {service.description}
                       </div>
                     </div>
                   </div>

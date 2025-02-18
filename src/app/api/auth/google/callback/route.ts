@@ -1,49 +1,44 @@
-// src/app/api/auth/google/callback/route.ts
-import { GoogleAuthProvider } from '@/lib/google/auth/GoogleAuthProvider';
+import { OAuthProvider } from '@/lib/auth/OAuthProvider';
+import { SERVICES } from '@/lib/services';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
+  const state = searchParams.get('state'); // This will have the actual service ID
 
-  if (!code) {
-    return Response.json({ error: 'No code provided' }, { status: 400 });
+  if (!code || !state || !SERVICES[state]) {
+    return Response.json({ error: 'Invalid request' }, { status: 400 });
   }
 
-  const auth = new GoogleAuthProvider();
+  const auth = new OAuthProvider();
   await auth.initialize({
     clientId: process.env.GOOGLE_CLIENT_ID!,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    redirectUri: `${process.env.NEXTAUTH_URL}/api/auth/google/callback`,
-    serviceId: 'gmail',
+    baseUrl: process.env.NEXTAUTH_URL!,
+    serviceId: state,
   });
 
   try {
     const tokens = await auth.handleCallback(code);
     
-    // Create an HTML page that stores tokens and sends a message to the opener
     const html = `
       <!DOCTYPE html>
       <html>
         <body>
           <script>
-            // Store tokens in localStorage
-            localStorage.setItem('gmail_tokens', '${JSON.stringify(tokens)}');
+            const tokens = ${JSON.stringify(tokens)};
+            localStorage.setItem('${state}_tokens', JSON.stringify(tokens));
             
-            // Notify the opener window and close
             try {
-              if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({ 
-                  type: 'gmail_auth_success',
-                  tokens: ${JSON.stringify(tokens)}
-                }, '*');
-              }
+              window.opener.postMessage({ 
+                type: '${state}_auth_success',
+                tokens: tokens
+              }, '*');
             } catch (e) {
-              // If postMessage fails, the main window will still check localStorage
-              console.error('Error sending message to opener:', e);
-            } finally {
-              // Close after a short delay to ensure message is sent
-              setTimeout(() => window.close(), 1000);
+              console.error('Error sending message:', e);
             }
+
+            setTimeout(() => window.close(), 1000);
           </script>
           <div style="text-align: center; font-family: sans-serif; padding-top: 2rem;">
             <h3>Authentication Successful!</h3>
@@ -54,9 +49,7 @@ export async function GET(request: Request) {
     `;
 
     return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html',
-      },
+      headers: { 'Content-Type': 'text/html' },
     });
   } catch (error) {
     console.error('Auth callback error:', error);

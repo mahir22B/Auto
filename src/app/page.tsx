@@ -1,61 +1,74 @@
 'use client';
 
 import FlowBuilder from '@/components/flow/FlowBuilder';
-import { Button } from '@/components/ui/button';
-import { Workflow } from '@/lib/gdrive/types';
+// import { Workflow } from '@/lib/gdrive/types';
 import { useState, useEffect } from 'react';
+import { SERVICES } from '@/lib/services';
+
+interface AuthState {
+  [service: string]: {
+    isAuthenticated: boolean;
+    tokens?: any;
+  }
+}
 
 export default function WorkflowPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    // Initialize auth state for all services
+    return Object.keys(SERVICES).reduce((acc, service) => ({
+      ...acc,
+      [service]: { isAuthenticated: false }
+    }), {});
+  });
 
   useEffect(() => {
-    // Check if we have tokens in localStorage
-    const tokens = localStorage.getItem('gmail_tokens');
-    console.log('Initial auth check:', !!tokens); // Debug log
-    setIsAuthenticated(!!tokens);
+    // Check localStorage for tokens for each service
+    Object.keys(SERVICES).forEach(service => {
+      const tokens = localStorage.getItem(`${service}_tokens`);
+      if (tokens) {
+        setAuthState(prev => ({
+          ...prev,
+          [service]: { 
+            isAuthenticated: true,
+            tokens: JSON.parse(tokens)
+          }
+        }));
+      }
+    });
 
-    // Set up a message listener for auth popup
+    // Set up message listener for auth popup
     const handleAuthMessage = (event: MessageEvent) => {
-      // console.log('Received message:', event.data); // Debug log
-      if (event.data.type === 'gmail_auth_success') {
-        // console.log('Setting authenticated to true'); // Debug log
-        setIsAuthenticated(true);
+      if (event.data.type?.endsWith('_auth_success')) {
+        const service = event.data.type.split('_')[0];
+        setAuthState(prev => ({
+          ...prev,
+          [service]: {
+            isAuthenticated: true,
+            tokens: event.data.tokens
+          }
+        }));
       }
     };
 
     window.addEventListener('message', handleAuthMessage);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('message', handleAuthMessage);
-    };
+    return () => window.removeEventListener('message', handleAuthMessage);
   }, []);
 
-  // Debug log for state changes
-  useEffect(() => {
-    console.log('Authentication state changed:', isAuthenticated);
-  }, [isAuthenticated]);
-
-  const handleSave = (workflow: Workflow) => {
-    console.log('Saving workflow:', workflow);
-  };
-
-  const handleGmailAuth = async () => {
+  const handleAuth = async (service: string) => {
     try {
-      const response = await fetch('/api/auth/google/connect?service=gmail');
+      const response = await fetch(`/api/auth/${service}/connect`);
       const data = await response.json();
       
       if (data.url) {
-        // Calculate popup position for center of screen
+        // Calculate popup position
         const width = 600;
         const height = 700;
         const left = window.screenX + (window.outerWidth - width) / 2;
         const top = window.screenY + (window.outerHeight - height) / 2;
 
-        // Open auth in a popup window
         window.open(
           data.url,
-          'Gmail Authorization',
+          `${service.charAt(0).toUpperCase() + service.slice(1)} Authorization`,
           `width=${width},height=${height},left=${left},top=${top},toolbar=0,location=0,status=0,menubar=0,scrollbars=1,resizable=1`
         );
       }
@@ -68,9 +81,9 @@ export default function WorkflowPage() {
     <div className="h-screen flex flex-col">
       <main className="flex-1">
         <FlowBuilder 
-          onSave={handleSave} 
-          isGmailAuthenticated={isAuthenticated}
-          onGmailAuth={handleGmailAuth}
+          onSave={console.log} 
+          authState={authState}
+          onAuth={handleAuth}
         />
       </main>
     </div>
