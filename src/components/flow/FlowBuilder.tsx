@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState, useMemo, useEffect } from "react";
+import '@/lib/executors';
 import ReactFlow, {
   addEdge,
   Background,
@@ -10,11 +11,12 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X } from "lucide-react";
+import { Plus, X, PlayCircle } from "lucide-react";
 import FlowNode from "./FlowNode";
 import CustomEdge from "./CustomEdge";
 import { Workflow } from "@/lib/gdrive/types";
 import { SERVICES } from "@/lib/services";
+import { WorkflowExecutor } from "@/lib/workflow/executor";
 
 const nodeTypes = {
   gdrive: FlowNode,
@@ -47,8 +49,10 @@ const FlowBuilder = ({
     React.useState<ReactFlowInstance | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
 
-  // Update nodes when auth state changes
+  // Update nodes when auth state or execution results change
   useEffect(() => {
     setNodes(nds => nds.map(node => {
       if (authState[node.type]) {
@@ -57,13 +61,56 @@ const FlowBuilder = ({
           data: {
             ...node.data,
             key: `${node.type}-${authState[node.type].isAuthenticated}`,
-            authState: authState[node.type]
+            authState: authState[node.type],
+            executionState: executionResults[node.id]
           }
         };
       }
       return node;
     }));
-  }, [authState, setNodes]);
+  }, [authState, executionResults, setNodes]);
+
+
+  const handleExecuteWorkflow = async () => {
+    if (!nodes.length) return;
+    
+    setIsExecuting(true);
+    setExecutionResults({});
+    
+    try {
+      console.log('All nodes before execution:', nodes);
+      console.log('Node configs:', nodes.map(node => ({
+        id: node.id,
+        config: node.data.config
+      })));
+      
+      const executor = new WorkflowExecutor();
+      const results = await executor.executeWorkflow(nodes, edges, authState);
+      setExecutionResults(results.nodeResults);
+    } catch (error) {
+      console.error('Workflow execution failed:', error);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleUpdateNode = useCallback((nodeId: string, newConfig: any) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              config: newConfig,
+              isConfigured: true,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, [setNodes]);
 
   const filteredServices = useMemo(() => 
     Object.values(SERVICES).filter(
@@ -92,30 +139,45 @@ const FlowBuilder = ({
     setEdges((eds) => eds.filter((edge) => 
       edge.source !== nodeId && edge.target !== nodeId
     ));
+    setExecutionResults((prev) => {
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
   }, [setNodes, setEdges]);
 
-  const createNode = useCallback(
+
+const createNode = useCallback(
     (position: { x: number; y: number }, serviceId: string) => {
       const newNode = {
         id: getId(),
         type: serviceId,
         position,
         data: {
-          key: `${serviceId}-${authState[serviceId]?.isAuthenticated}`,
           config: { 
             type: serviceId,
             action: null
           },
-          isConfigured: false,
           onDelete: handleDeleteNode,
           service: serviceId,
           authState: authState[serviceId] || { isAuthenticated: false },
           onAuth: () => onAuth(serviceId),
+          updateNodeConfig: (newConfig: any) => {
+            // console.log('Updating node config:', { id: newNode.id, newConfig });
+            setNodes(nds => 
+              nds.map(node => 
+                node.id === newNode.id
+                  ? { ...node, data: { ...node.data, config: newConfig } }
+                  : node
+              )
+            );
+          },
         },
         sourcePosition: 'bottom',
         targetPosition: 'top',
       };
-
+  
+      console.log('Creating new node:', newNode);
       setNodes((nds) => nds.concat(newNode));
     },
     [setNodes, handleDeleteNode, authState, onAuth]
@@ -165,6 +227,7 @@ const FlowBuilder = ({
 
   return (
     <div className="h-full relative">
+      {/* Add Node Button */}
       <Button
         className="absolute top-8 left-8 z-50 rounded-full w-14 h-14 p-0 bg-blue-900 hover:bg-blue-1000 shadow-lg transition-all duration-300 ease-in-out transform hover:scale-110"
         onClick={() => setShowSidebar(true)}
@@ -172,6 +235,17 @@ const FlowBuilder = ({
         <Plus className="h-8 w-8 text-white" />
       </Button>
 
+      {/* Run Workflow Button */}
+      <Button
+        className="absolute top-8 right-8 z-50 bg-green-600 hover:bg-green-700"
+        onClick={handleExecuteWorkflow}
+        disabled={isExecuting || nodes.length === 0}
+      >
+        <PlayCircle className="mr-2 h-4 w-4" />
+        {isExecuting ? 'Running...' : 'Run Workflow'}
+      </Button>
+
+      {/* Services Sidebar */}
       {showSidebar && (
         <div className="absolute left-8 top-20 z-50 bg-white rounded-lg shadow-[0_4px_24px_0_rgba(0,0,0,0.12)] w-96">
           <div className="p-4">
@@ -223,6 +297,7 @@ const FlowBuilder = ({
         </div>
       )}
 
+      {/* Flow Canvas */}
       <div className="h-full" ref={reactFlowWrapper}>
         <ReactFlow
           nodes={nodes}

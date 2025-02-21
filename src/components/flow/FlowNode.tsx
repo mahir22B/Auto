@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { X } from 'lucide-react';
+import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { SERVICES } from '@/lib/services';
+import { cn } from '@/lib/utils';
 
 interface FlowNodeProps {
   data: {
     config: any;
-    isConfigured: boolean;
     onDelete: (id: string) => void;
     service: string;
     authState: {
@@ -19,42 +19,64 @@ interface FlowNodeProps {
       tokens?: any;
     };
     onAuth: () => void;
+    updateNodeConfig: (config: any) => void;
+    executionState?: {
+      success: boolean;
+      error?: string;
+      data?: any;
+    };
   };
   id: string;
   isConnectable: boolean;
   selected?: boolean;
-  updateNode: (id: string, config: any) => void;
 }
 
-const FlowNode = ({ id, data, isConnectable, selected, updateNode }: FlowNodeProps) => {
-  const [isConfiguring, setIsConfiguring] = React.useState(false);
+const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const [config, setConfig] = React.useState(data.config);
   const [showAuthPrompt, setShowAuthPrompt] = React.useState(false);
+  const [showExecutionData, setShowExecutionData] = React.useState(false);
   
   const serviceConfig = SERVICES[data.service];
   const { name, icon, actions } = serviceConfig;
 
-  // Effect to handle post-auth configuration
+  // Update local config when data.config changes
   React.useEffect(() => {
-    console.log('Auth state changed:', {
-      service: data.service,
-      isAuthenticated: data.authState.isAuthenticated,
-      showAuthPrompt
-    });
+    console.log('Data config changed:', data.config);
+    setConfig(data.config);
+  }, [data.config]);
 
+  // When inputs change, update both local state and node data
+  const handleConfigChange = (updates: Partial<any>) => {
+    const newConfig = { ...config, ...updates };
+    console.log('Updating config:', newConfig);
+    setConfig(newConfig);
+    data.updateNodeConfig(newConfig);
+  };
+
+  const handleActionSelect = async (action: string) => {
+    if (!data.authState.isAuthenticated) {
+      localStorage.setItem(`${data.service}_pending_action`, JSON.stringify({
+        nodeId: id,
+        action
+      }));
+      setShowAuthPrompt(true);
+      return;
+    }
+    
+    handleConfigChange({ action });
+  };
+
+  // Handle post-auth configuration
+  React.useEffect(() => {
     if (data.authState.isAuthenticated && showAuthPrompt) {
       const pendingAction = localStorage.getItem(`${data.service}_pending_action`);
-      console.log('Checking pending action:', pendingAction);
 
       if (pendingAction) {
         try {
           const { nodeId, action } = JSON.parse(pendingAction);
-          console.log('Parsed action:', { nodeId, action, currentId: id });
-
           if (nodeId === id) {
             localStorage.removeItem(`${data.service}_pending_action`);
-            setConfig(prev => ({ ...prev, action }));
-            setIsConfiguring(true);
+            handleConfigChange({ action });
             setShowAuthPrompt(false);
           }
         } catch (error) {
@@ -64,26 +86,55 @@ const FlowNode = ({ id, data, isConnectable, selected, updateNode }: FlowNodePro
     }
   }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
 
-  const handleActionSelect = async (action: string) => {
-    console.log('Action selected:', action);
-    
-    if (!data.authState.isAuthenticated) {
-      console.log('Storing pending action');
-      localStorage.setItem(`${data.service}_pending_action`, JSON.stringify({
-        nodeId: id,
-        action
-      }));
-      setShowAuthPrompt(true);
-      return;
-    }
-    
-    setConfig(prev => ({ ...prev, action }));
-    setIsConfiguring(true);
-  };
+  // Render execution state
+  const renderExecutionState = () => {
+    if (!data.executionState) return null;
 
-  const handleSave = () => {
-    updateNode(id, config);
-    setIsConfiguring(false);
+    return (
+      <div 
+        className={cn(
+          "mt-4 p-3 rounded-md text-sm",
+          data.executionState.success 
+            ? "bg-green-50 border border-green-200" 
+            : "bg-red-50 border border-red-200"
+        )}
+      >
+        <div className="flex items-center gap-2">
+          {data.executionState.success ? (
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          ) : (
+            <XCircle className="h-4 w-4 text-red-600" />
+          )}
+          <span className={data.executionState.success ? "text-green-700" : "text-red-700"}>
+            {data.executionState.success ? "Execution successful" : "Execution failed"}
+          </span>
+        </div>
+        
+        {data.executionState.error && (
+          <div className="mt-2 text-red-600">
+            Error: {data.executionState.error}
+          </div>
+        )}
+        
+        {data.executionState.success && data.executionState.data && (
+          <div className="mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setShowExecutionData(!showExecutionData)}
+            >
+              {showExecutionData ? "Hide" : "Show"} Results
+            </Button>
+            {showExecutionData && (
+              <pre className="mt-2 p-2 bg-black/5 rounded text-xs overflow-auto max-h-40">
+                {JSON.stringify(data.executionState.data, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Common header with close button
@@ -134,12 +185,12 @@ const FlowNode = ({ id, data, isConnectable, selected, updateNode }: FlowNodePro
     );
   }
 
-  // Show configuration form if an action is selected and we're configuring
-  if (isConfiguring && config.action) {
+  // Show configuration form if an action is selected
+  if (config.action) {
     const action = actions[config.action];
     
     return (
-      <Card className="p-4 w-80">
+      <Card className={`p-4 w-80 ${selected ? 'ring-2 ring-blue-500' : ''}`}>
         <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
         
         {renderHeader(action.name)}
@@ -151,70 +202,22 @@ const FlowNode = ({ id, data, isConnectable, selected, updateNode }: FlowNodePro
               {field.type === 'text' ? (
                 <Textarea
                   value={config[field.name] || ''}
-                  onChange={(e) => setConfig({ 
-                    ...config, 
-                    [field.name]: e.target.value 
-                  })}
+                  onChange={(e) => handleConfigChange({ [field.name]: e.target.value })}
                   placeholder={`Enter ${field.label.toLowerCase()}`}
                 />
               ) : (
                 <Input
                   type={field.type}
                   value={config[field.name] || ''}
-                  onChange={(e) => setConfig({ 
-                    ...config, 
-                    [field.name]: e.target.value 
-                  })}
+                  onChange={(e) => handleConfigChange({ [field.name]: e.target.value })}
                   placeholder={`Enter ${field.label.toLowerCase()}`}
                 />
               )}
             </div>
           ))}
-
-          <div className="flex gap-2">
-            <Button onClick={handleSave} className="flex-1">Save</Button>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsConfiguring(false)} 
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
         </div>
 
-        <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} />
-      </Card>
-    );
-  }
-
-  // If already configured, show the configuration summary
-  if (data.isConfigured && config.action) {
-    const action = actions[config.action];
-    
-    return (
-      <Card className={`p-4 w-80 ${selected ? 'ring-2 ring-blue-500' : ''}`}>
-        <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
-        
-        {renderHeader(action.name)}
-
-        <div className="space-y-2 mb-4">
-          {action.configFields.map(field => (
-            <div key={field.name} className="text-sm">
-              <span className="font-medium">{field.label}:</span>{' '}
-              {config[field.name] || 'Not set'}
-            </div>
-          ))}
-        </div>
-
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="w-full"
-          onClick={() => setIsConfiguring(true)}
-        >
-          Edit Configuration
-        </Button>
+        {renderExecutionState()}
 
         <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} />
       </Card>

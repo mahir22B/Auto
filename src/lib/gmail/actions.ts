@@ -25,6 +25,12 @@ export const GMAIL_ACTIONS = {
     name: 'Send Email',
     description: 'Send a new email',
     configFields: [
+      // {
+      //   name: 'senderName',
+      //   label: 'Sender display name',
+      //   type: 'string',
+      //   required: false
+      // },
       {
         name: 'to',
         label: 'To',
