@@ -280,7 +280,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                     title={field.pickerOptions?.title}
                     pickerOptions={{
                       viewTypes: field.pickerOptions?.viewTypes || ['ALL_DRIVE_ITEMS'],
-                      selectFolders: field.pickerOptions?.selectFolders || false
+                      selectFolders: field.pickerOptions?.selectFolders || false,
+                      mimeTypes: field.pickerOptions?.mimeTypes
                     }}
                   />
                 ):

@@ -8,16 +8,21 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     configFields: [
       {
         name: 'spreadsheetId',
-        label: 'Spreadsheet ID',
-        type: 'string',
+        label: 'Select Spreadsheet',
+        type: 'google-picker',
         required: true,
+        pickerOptions: {
+          serviceType: 'sheets',
+          title: 'Select a spreadsheet',
+          mimeTypes: ['application/vnd.google-apps.spreadsheet']
+        }
       },
-      {
-        name: 'range',
-        label: 'Range (e.g., Sheet1!A1:D10)',
-        type: 'string',
-        required: true,
-      }
+      // {
+      //   name: 'range',
+      //   label: 'Range (e.g., Sheet1!A1:D10)',
+      //   type: 'string',
+      //   required: true,
+      // }
     ],
     ports: {
       inputs: [
@@ -37,9 +42,14 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     configFields: [
       {
         name: 'spreadsheetId',
-        label: 'Spreadsheet ID',
-        type: 'string',
+        label: 'Select Spreadsheet',
+        type: 'google-picker',
         required: true,
+        pickerOptions: {
+          serviceType: 'sheets',
+          title: 'Select a spreadsheet',
+          mimeTypes: ['application/vnd.google-apps.spreadsheet']
+        }
       },
       {
         name: 'range',
@@ -73,9 +83,14 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     configFields: [
       {
         name: 'spreadsheetId',
-        label: 'Spreadsheet ID',
-        type: 'string',
+        label: 'Select Spreadsheet',
+        type: 'google-picker',
         required: true,
+        pickerOptions: {
+          serviceType: 'sheets',
+          title: 'Select a spreadsheet',
+          mimeTypes: ['application/vnd.google-apps.spreadsheet']
+        }
       },
       {
         name: 'range',

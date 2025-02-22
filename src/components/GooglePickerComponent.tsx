@@ -22,6 +22,7 @@ interface GooglePickerProps {
   pickerOptions?: {
     viewTypes?: string[];
     selectFolders?: boolean;
+    mimeTypes?: string[];
   };
 }
 
@@ -79,8 +80,14 @@ const GooglePicker = ({
           .setSelectFolderEnabled(true)
           .setMimeTypes('application/vnd.google-apps.folder')
           .setIncludeFolders(true);
+      } else if (pickerOptions.mimeTypes && pickerOptions.mimeTypes.length > 0) {
+        // Specific file type view (e.g., only spreadsheets)
+        view = new window.google.picker.DocsView()
+          .setIncludeFolders(true)
+          .setSelectFolderEnabled(false)
+          .setMimeTypes(pickerOptions.mimeTypes.join(','));
       } else {
-        // File selection view - allows folder navigation but only file selection
+        // Default file selection view for Drive
         view = new window.google.picker.DocsView()
           .setIncludeFolders(true)
           .setSelectFolderEnabled(false);
@@ -98,7 +105,11 @@ const GooglePicker = ({
               id: file.id,
               name: file.name,
               mimeType: file.mimeType,
-              url: file.url
+              url: file.url,
+              iconUrl: file.iconUrl,
+              description: file.description,
+              lastEditedUtc: file.lastEditedUtc,
+              serviceId: serviceType
             });
           }
         })
@@ -114,6 +125,8 @@ const GooglePicker = ({
     if (selectedFile?.id) {
       const baseUrl = selectedFile.mimeType === 'application/vnd.google-apps.folder'
         ? 'https://drive.google.com/drive/folders/'
+        : selectedFile.mimeType === 'application/vnd.google-apps.spreadsheet'
+        ? 'https://docs.google.com/spreadsheets/d/'
         : 'https://drive.google.com/file/d/';
       
       window.open(`${baseUrl}${selectedFile.id}${selectedFile.mimeType === 'application/vnd.google-apps.folder' ? '' : '/view'}`, '_blank');
