@@ -1,29 +1,21 @@
 // src/lib/gmail/executor.ts
 
-import { BaseExecutor, ExecutorContext, ExecutionResult } from '../executors/types';
-import { ExecutorRegistry } from '../executors/registry';
+import { ExecutorContext, ExecutionResult } from '../executors/types';
+import { AbstractExecutor } from '../executors/AbstractExecutor';
 import { GmailConfig } from './types';
+import { ExecutorRegistry } from '../executors/registry';
 
-export class GmailExecutor implements BaseExecutor {
-  private async makeRequest(
+export class GmailExecutor extends AbstractExecutor {
+  private async makeGmailRequest(
     endpoint: string,
     options: RequestInit,
     context: ExecutorContext
   ) {
-    const response = await fetch(`https://www.googleapis.com/gmail/v1/users/me/${endpoint}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${context.tokens.access_token}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to execute Gmail action');
-    }
-
+    const response = await this.makeAuthorizedRequest(
+      'gmail',
+      `https://www.googleapis.com/gmail/v1/users/me/${endpoint}`,
+      options
+    );
     return response.json();
   }
 
@@ -32,21 +24,18 @@ export class GmailExecutor implements BaseExecutor {
     config: GmailConfig
   ): Promise<ExecutionResult> {
     try {
-      // Build query for unread emails
       const query = ['is:unread'];
       if (config.labelId) {
         query.push(`label:${config.labelId}`);
       }
 
-      // Get message list
-      const listResponse = await this.makeRequest('messages', {
+      const listResponse = await this.makeGmailRequest('messages', {
         method: 'GET',
       }, context);
 
-      // Get full message details
       const messages = await Promise.all(
         listResponse.messages.slice(0, config.maxResults || 10).map(async (msg: { id: string }) => {
-          const messageDetails = await this.makeRequest(`messages/${msg.id}`, {
+          const messageDetails = await this.makeGmailRequest(`messages/${msg.id}`, {
             method: 'GET',
           }, context);
           return messageDetails;
@@ -70,8 +59,7 @@ export class GmailExecutor implements BaseExecutor {
     }
   }
 
-
-private async sendEmail(
+  private async sendEmail(
     context: ExecutorContext,
     config: GmailConfig
   ): Promise<ExecutionResult> {
@@ -79,8 +67,7 @@ private async sendEmail(
       if (!config.to || !config.subject || !config.body) {
         throw new Error('Missing required fields for sending email');
       }
-  
-      // Create email in RFC 2822 format
+
       const email = [
         `To: ${config.to}`,
         `Subject: ${config.subject}`,
@@ -88,20 +75,19 @@ private async sendEmail(
         '',
         config.body
       ].join('\r\n');
-  
-      // Encode the email in base64
+
       const encodedEmail = Buffer.from(email).toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '');
-  
-      const response = await this.makeRequest('messages/send', {
+
+      const response = await this.makeGmailRequest('messages/send', {
         method: 'POST',
         body: JSON.stringify({
           raw: encodedEmail,
         }),
       }, context);
-  
+
       return {
         success: true,
         data: {

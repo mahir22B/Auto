@@ -8,6 +8,13 @@ import { Label } from '@/components/ui/label';
 import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { SERVICES } from '@/lib/services';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface FlowNodeProps {
   data: {
@@ -198,19 +205,86 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         <div className="space-y-4">
           {action.configFields.map(field => (
             <div key={field.name} className="space-y-2">
-              <Label>{field.label}</Label>
+              <Label><strong>{field.label}</strong></Label>
               {field.type === 'text' ? (
                 <Textarea
                   value={config[field.name] || ''}
                   onChange={(e) => handleConfigChange({ [field.name]: e.target.value })}
-                  placeholder={`Enter ${field.label.toLowerCase()}`}
+                  placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 />
+              ) : field.type === 'select' ? (
+                <Select
+                  value={config[field.name] || ''}
+                  onValueChange={(value) => handleConfigChange({ [field.name]: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={field.placeholder || `Select ${field.label.toLowerCase()}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.options?.map((option: { value: string; label: string } | string) => (
+                      <SelectItem 
+                        key={typeof option === 'string' ? option : option.value}
+                        value={typeof option === 'string' ? option : option.value}
+                      >
+                        {typeof option === 'string' ? option : option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : field.type === 'multiselect' ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {(config[field.name] || []).map((value: string) => (
+                      <div 
+                        key={value}
+                        className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm flex items-center gap-1"
+                      >
+                        {value}
+                        <button
+                          onClick={() => {
+                            const newValues = (config[field.name] || []).filter((v: string) => v !== value);
+                            handleConfigChange({ [field.name]: newValues });
+                          }}
+                          className="hover:text-blue-900"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      const currentValues = config[field.name] || [];
+                      if (!currentValues.includes(value)) {
+                        handleConfigChange({
+                          [field.name]: [...currentValues, value]
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={field.placeholder || `Select ${field.label.toLowerCase()}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.options?.map((option: string) => (
+                        <SelectItem 
+                          key={option}
+                          value={option}
+                          disabled={(config[field.name] || []).includes(option)}
+                        >
+                          {option.replace(/_/g, ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               ) : (
                 <Input
                   type={field.type}
                   value={config[field.name] || ''}
                   onChange={(e) => handleConfigChange({ [field.name]: e.target.value })}
-                  placeholder={`Enter ${field.label.toLowerCase()}`}
+                  placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 />
               )}
             </div>
