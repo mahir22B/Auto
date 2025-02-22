@@ -276,9 +276,14 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                       });
                     }}
                     selectedFile={config.fileDetails}
-                    {...field.pickerOptions}
+                    serviceType={data.service}
+                    title={field.pickerOptions?.title}
+                    pickerOptions={{
+                      viewTypes: field.pickerOptions?.viewTypes || ['ALL_DRIVE_ITEMS'],
+                      selectFolders: field.pickerOptions?.selectFolders || false
+                    }}
                   />
-                ) :
+                ):
                 
                 field.type === 'multiselect' ? (
                 <div className="space-y-2">

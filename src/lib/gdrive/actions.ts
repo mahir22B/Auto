@@ -15,7 +15,8 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
         pickerOptions: {
           viewTypes: ['ALL_DRIVE_ITEMS'],
           serviceType: 'gdrive',
-          title: 'Select a file to read'
+          title: 'Select a file to read',
+          selectFolders: false
         }
       }
     ],
@@ -37,9 +38,15 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     configFields: [
       {
         name: 'folderId',
-        label: 'Folder ID',
-        type: 'string',
+        label: 'Select Folder',
+        type: 'google-picker',
         required: true,
+        pickerOptions: {
+          viewTypes: ['FOLDERS_ONLY'],
+          serviceType: 'gdrive',
+          title: 'Select a folder to read',
+          selectFolders: true
+        }
       }
     ],
     ports: {
@@ -52,6 +59,7 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
       ]
     }
   },
+  
   WRITE_FILE: {
     id: 'WRITE_FILE',
     name: 'Write File',
@@ -59,9 +67,15 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     configFields: [
       {
         name: 'folderId',
-        label: 'Folder ID',
-        type: 'string',
+        label: 'Select Destination Folder',
+        type: 'google-picker',
         required: true,
+        pickerOptions: {
+          viewTypes: ['FOLDERS_ONLY'],
+          serviceType: 'gdrive',
+          title: 'Select destination folder',
+          selectFolders: true
+        }
       },
       {
         name: 'fileName',

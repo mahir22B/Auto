@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileText, FilePlus } from 'lucide-react';
+import { FileText, FilePlus, ExternalLink, Folder } from 'lucide-react';
 import { TokenManager } from '@/lib/auth/TokenManager';
 
 interface GooglePickerProps {
@@ -15,9 +15,14 @@ interface GooglePickerProps {
     id: string;
     name: string;
     mimeType: string;
+    url?: string;
   };
   serviceType: string;
   title?: string;
+  pickerOptions?: {
+    viewTypes?: string[];
+    selectFolders?: boolean;
+  };
 }
 
 declare global {
@@ -31,9 +36,9 @@ const GooglePicker = ({
   onFileSelect, 
   selectedFile,
   serviceType,
-  title = 'Select a file'
+  title = 'Select a file',
+  pickerOptions = {}
 }: GooglePickerProps) => {
-  // Initialize the Google API client
   const initializeGoogleApi = useCallback(async () => {
     if (!window.gapi) {
       console.error('Google API client not loaded');
@@ -67,10 +72,19 @@ const GooglePicker = ({
         return;
       }
 
-      const view = new window.google.picker.DocsView()
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true)
-        .setParent('root');
+      let view;
+      if (pickerOptions.selectFolders) {
+        // Folder selection view
+        view = new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS)
+          .setSelectFolderEnabled(true)
+          .setMimeTypes('application/vnd.google-apps.folder')
+          .setIncludeFolders(true);
+      } else {
+        // File selection view - allows folder navigation but only file selection
+        view = new window.google.picker.DocsView()
+          .setIncludeFolders(true)
+          .setSelectFolderEnabled(false);
+      }
 
       const picker = new window.google.picker.PickerBuilder()
         .addView(view)
@@ -96,34 +110,57 @@ const GooglePicker = ({
     }
   };
 
+  const openInNewTab = () => {
+    if (selectedFile?.id) {
+      const baseUrl = selectedFile.mimeType === 'application/vnd.google-apps.folder'
+        ? 'https://drive.google.com/drive/folders/'
+        : 'https://drive.google.com/file/d/';
+      
+      window.open(`${baseUrl}${selectedFile.id}${selectedFile.mimeType === 'application/vnd.google-apps.folder' ? '' : '/view'}`, '_blank');
+    }
+  };
+
+  const isFolder = selectedFile?.mimeType === 'application/vnd.google-apps.folder';
+
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        {selectedFile ? (
-          <>
-            <div className="flex items-center gap-2 p-2 border rounded-md flex-1">
-              <FileText className="h-4 w-4" />
-              <span className="text-sm truncate">{selectedFile.name}</span>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={openPicker}
-            >
-              Change
-            </Button>
-          </>
-        ) : (
-          <Button 
-            variant="outline" 
-            className="w-full" 
+    <div className="space-y-2">
+      {selectedFile ? (
+        <div className="flex gap-2">
+          <div 
+            className="flex items-center gap-2 p-2 border rounded-md flex-1 hover:bg-gray-50 cursor-pointer"
             onClick={openPicker}
           >
-            <FilePlus className="h-4 w-4 mr-2" />
-            Select File
+            {isFolder ? (
+              <Folder className="h-4 w-4 flex-shrink-0" />
+            ) : (
+              <FileText className="h-4 w-4 flex-shrink-0" />
+            )}
+            <span className="text-sm truncate">{selectedFile.name}</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="px-2"
+            onClick={openInNewTab}
+            title="Open in new tab"
+          >
+            <ExternalLink className="h-4 w-4" />
           </Button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <Button 
+          variant="outline" 
+          className="w-full" 
+          onClick={openPicker}
+        >
+          {pickerOptions.selectFolders ? (
+            <Folder className="h-4 w-4 mr-2" />
+          ) : (
+            <FilePlus className="h-4 w-4 mr-2" />
+          )}
+          {pickerOptions.selectFolders ? 'Select Folder' : 'Select File'}
+        </Button>
+      )}
     </div>
   );
 };
