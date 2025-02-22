@@ -24,6 +24,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Other head elements */}
+        <script async defer src="https://apis.google.com/js/api.js"></script>
+        <script async defer src="https://accounts.google.com/gsi/client"></script>      
+        </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

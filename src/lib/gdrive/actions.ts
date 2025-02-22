@@ -9,21 +9,27 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     configFields: [
       {
         name: 'fileId',
-        label: 'File ID',
-        type: 'string',
+        label: 'Select File',
+        type: 'google-picker',
         required: true,
+        pickerOptions: {
+          viewTypes: ['ALL_DRIVE_ITEMS'],
+          serviceType: 'gdrive',
+          title: 'Select a file to read'
+        }
       }
     ],
     ports: {
       inputs: [
-        { id: 'fileId', label: 'File ID', type: 'string' }
+        // { id: 'fileId', label: 'File ID', type: 'string' }
       ],
       outputs: [
-        { id: 'content', label: 'Content', type: 'string' },
-        // { id: 'mimeType', label: 'MIME Type', type: 'string' }
+        { id: 'fileName', label: 'File Name', type: 'string' },
+        { id: 'content', label: 'File Contents', type: 'string' }
       ]
     }
   },
+
   READ_FOLDER: {
     id: 'READ_FOLDER',
     name: 'Read Folder',

@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import GooglePicker from '../GooglePickerComponent';
 
 interface FlowNodeProps {
   data: {
@@ -247,7 +248,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   onChange={(e) => handleConfigChange({ [field.name]: e.target.value })}
                   placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 />
-              ) : field.type === 'select' ? (
+                ) : field.type === 'select' ? (
                 <Select
                   value={config[field.name] || ''}
                   onValueChange={(value) => handleConfigChange({ [field.name]: value })}
@@ -266,7 +267,20 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                     ))}
                   </SelectContent>
                 </Select>
-              ) : field.type === 'multiselect' ? (
+                ) : field.type === 'google-picker' ? (
+                  <GooglePicker
+                    onFileSelect={(fileDetails) => {
+                      handleConfigChange({ 
+                        [field.name]: fileDetails.id,
+                        fileDetails: fileDetails
+                      });
+                    }}
+                    selectedFile={config.fileDetails}
+                    {...field.pickerOptions}
+                  />
+                ) :
+                
+                field.type === 'multiselect' ? (
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-2">
                     {(config[field.name] || []).map((value: string) => (
@@ -314,7 +328,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                     </SelectContent>
                   </Select>
                 </div>
-              ) : (
+                ) : (
                 <Input
                   type={field.type}
                   value={config[field.name] || ''}
