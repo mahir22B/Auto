@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState, useMemo, useEffect } from "react";
+import { v4 as uuidv4 } from 'uuid';
 import '@/lib/executors';
 import ReactFlow, {
   addEdge,
@@ -28,8 +29,7 @@ const edgeTypes = {
   custom: CustomEdge,
 };
 
-let id = 0;
-const getId = () => `node_${id++}`;
+const generateId = () => `node_${uuidv4()}`;
 
 interface FlowBuilderProps {
   onSave: (workflow: Workflow) => void;
@@ -52,6 +52,15 @@ const FlowBuilder = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
 
+  // Debug logging for state changes
+  // useEffect(() => {
+  //   console.log('Nodes updated:', nodes);
+  // }, [nodes]);
+
+  // useEffect(() => {
+  //   console.log('Edges updated:', edges);
+  // }, [edges]);
+
   // Update nodes when auth state or execution results change
   useEffect(() => {
     setNodes(nds => nds.map(node => {
@@ -69,7 +78,6 @@ const FlowBuilder = ({
       return node;
     }));
   }, [authState, executionResults, setNodes]);
-
 
   const handleExecuteWorkflow = async () => {
     if (!nodes.length) return;
@@ -94,23 +102,61 @@ const FlowBuilder = ({
     }
   };
 
-  const handleUpdateNode = useCallback((nodeId: string, newConfig: any) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              config: newConfig,
-              isConfigured: true,
-            },
-          };
-        }
-        return node;
-      })
-    );
-  }, [setNodes]);
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    setEdges((eds) => eds.filter((edge) => 
+      edge.source !== nodeId && edge.target !== nodeId
+    ));
+    setExecutionResults((prev) => {
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
+  }, [setNodes, setEdges]);
+
+  const createNode = useCallback(
+    (position: { x: number; y: number }, serviceId: string) => {
+      const newId = generateId();
+      
+      console.log('Creating new node...');
+      
+      const newNode = {
+        id: newId,
+        type: serviceId,
+        position,
+        data: {
+          config: { 
+            type: serviceId,
+            action: null
+          },
+          onDelete: handleDeleteNode,
+          service: serviceId,
+          authState: authState[serviceId] || { isAuthenticated: false },
+          onAuth: () => onAuth(serviceId),
+          updateNodeConfig: (newConfig: any) => {
+            console.log('Updating node config:', { id: newId, newConfig });
+            setNodes(nds => 
+              nds.map(node => 
+                node.id === newId
+                  ? { ...node, data: { ...node.data, config: newConfig } }
+                  : node
+              )
+            );
+          },
+        },
+        sourcePosition: 'bottom',
+        targetPosition: 'top',
+      };
+  
+      console.log('Created node:', newNode);
+      
+      setNodes(currentNodes => {
+        console.log('Current nodes:', currentNodes);
+        return [...currentNodes, newNode];
+      });
+    },
+    [setNodes, handleDeleteNode, authState, onAuth]
+  );
 
   const filteredServices = useMemo(() => 
     Object.values(SERVICES).filter(
@@ -133,55 +179,6 @@ const FlowBuilder = ({
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
-
-  const handleDeleteNode = useCallback((nodeId: string) => {
-    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-    setEdges((eds) => eds.filter((edge) => 
-      edge.source !== nodeId && edge.target !== nodeId
-    ));
-    setExecutionResults((prev) => {
-      const next = { ...prev };
-      delete next[nodeId];
-      return next;
-    });
-  }, [setNodes, setEdges]);
-
-
-const createNode = useCallback(
-    (position: { x: number; y: number }, serviceId: string) => {
-      const newNode = {
-        id: getId(),
-        type: serviceId,
-        position,
-        data: {
-          config: { 
-            type: serviceId,
-            action: null
-          },
-          onDelete: handleDeleteNode,
-          service: serviceId,
-          authState: authState[serviceId] || { isAuthenticated: false },
-          onAuth: () => onAuth(serviceId),
-          updateNodeConfig: (newConfig: any) => {
-            // console.log('Updating node config:', { id: newNode.id, newConfig });
-            setNodes(nds => 
-              nds.map(node => 
-                node.id === newNode.id
-                  ? { ...node, data: { ...node.data, config: newConfig } }
-                  : node
-              )
-            );
-          },
-        },
-        sourcePosition: 'bottom',
-        targetPosition: 'top',
-      };
-  
-      console.log('Creating new node:', newNode);
-      setNodes((nds) => nds.concat(newNode));
-    },
-    [setNodes, handleDeleteNode, authState, onAuth]
-  );
 
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
