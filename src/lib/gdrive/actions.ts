@@ -1,6 +1,7 @@
 import { GDriveAction } from './types';
+import { ActionConfig } from '../services';
 
-export const GDRIVE_ACTIONS = {
+export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
   READ_FILE: {
     id: 'READ_FILE',
     name: 'Read File',
@@ -12,7 +13,16 @@ export const GDRIVE_ACTIONS = {
         type: 'string',
         required: true,
       }
-    ]
+    ],
+    ports: {
+      inputs: [
+        { id: 'fileId', label: 'File ID', type: 'string' }
+      ],
+      outputs: [
+        { id: 'content', label: 'Content', type: 'string' },
+        // { id: 'mimeType', label: 'MIME Type', type: 'string' }
+      ]
+    }
   },
   READ_FOLDER: {
     id: 'READ_FOLDER',
@@ -25,7 +35,16 @@ export const GDRIVE_ACTIONS = {
         type: 'string',
         required: true,
       }
-    ]
+    ],
+    ports: {
+      inputs: [
+        { id: 'folderId', label: 'Folder ID', type: 'string' }
+      ],
+      outputs: [
+        { id: 'files', label: 'Files', type: 'array' },
+        { id: 'count', label: 'File Count', type: 'number' }
+      ]
+    }
   },
   WRITE_FILE: {
     id: 'WRITE_FILE',
@@ -50,6 +69,17 @@ export const GDRIVE_ACTIONS = {
         type: 'text',
         required: true,
       }
-    ]
+    ],
+    ports: {
+      inputs: [
+        { id: 'folderId', label: 'Folder ID', type: 'string' },
+        { id: 'fileName', label: 'File Name', type: 'string' },
+        { id: 'content', label: 'Content', type: 'string' }
+      ],
+      outputs: [
+        { id: 'fileId', label: 'File ID', type: 'string' },
+        { id: 'status', label: 'Status', type: 'boolean' }
+      ]
+    }
   }
 } as const;

@@ -1,6 +1,6 @@
 // src/lib/gmail/actions.ts
-
 import { GmailAction } from './types';
+import { ActionConfig } from '../services';
 
 const EMAIL_INFORMATION_OPTIONS = [
   'email_bodies',
@@ -20,7 +20,7 @@ const LABEL_OPTIONS = [
   { value: 'DRAFT', label: 'Drafts' }
 ];
 
-export const GMAIL_ACTIONS = {
+export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
   READ_UNREAD: {
     id: 'READ_UNREAD',
     name: 'Read Unread Emails',
@@ -49,7 +49,17 @@ export const GMAIL_ACTIONS = {
         options: EMAIL_INFORMATION_OPTIONS,
         placeholder: 'Select information to retrieve'
       }
-    ]
+    ],
+    ports: {
+      inputs: [
+        { id: 'maxResults', label: 'Max Results', type: 'number' },
+        { id: 'label', label: 'Label', type: 'string' }
+      ],
+      outputs: [
+        { id: 'emails', label: 'Emails', type: 'array' },
+        { id: 'count', label: 'Count', type: 'number' }
+      ]
+    }
   },
   SEND_EMAIL: {
     id: 'SEND_EMAIL',
@@ -77,6 +87,17 @@ export const GMAIL_ACTIONS = {
         required: true,
         placeholder: 'Type your email message here...'
       }
-    ]
+    ],
+    ports: {
+      inputs: [
+        { id: 'to', label: 'To', type: 'string' },
+        { id: 'subject', label: 'Subject', type: 'string' },
+        { id: 'body', label: 'Body', type: 'string' }
+      ],
+      outputs: [
+        { id: 'status', label: 'Status', type: 'boolean' },
+        { id: 'messageId', label: 'Message ID', type: 'string' }
+      ]
+    }
   }
 } as const;

@@ -1,9 +1,23 @@
-// src/lib/gmail/executor.ts
-
 import { ExecutorContext, ExecutionResult } from '../executors/types';
 import { AbstractExecutor } from '../executors/AbstractExecutor';
 import { GmailConfig } from './types';
-import { ExecutorRegistry } from '../executors/registry';
+
+interface EmailData {
+  id: string;
+  threadId: string;
+  subject?: string;
+  body?: string;
+  sender?: {
+    email: string;
+    name?: string;
+  };
+  recipients?: string[];
+  date?: string;
+  attachments?: Array<{
+    filename: string;
+    id: string;
+  }>;
+}
 
 export class GmailExecutor extends AbstractExecutor {
   private async makeGmailRequest(
@@ -23,38 +37,131 @@ export class GmailExecutor extends AbstractExecutor {
     context: ExecutorContext,
     config: GmailConfig
   ): Promise<ExecutionResult> {
+    console.log('Starting to read unread emails with config:', config);
     try {
-      const query = ['is:unread'];
-      if (config.labelId) {
-        query.push(`label:${config.labelId}`);
+      // Construct search query
+      const queryParts = ['is:unread'];
+      if (config.label) {
+        queryParts.push(`in:${config.label.toLowerCase()}`);
+      }
+      const query = queryParts.join(' ');
+
+      // Fetch message list
+      console.log('Searching for emails with query:', query);
+      const listResponse = await this.makeGmailRequest(
+        `messages?q=${encodeURIComponent(query)}&maxResults=${config.maxResults || 10}`,
+        { method: 'GET' },
+        context
+      );
+      console.log('Found messages:', listResponse);
+
+      if (!listResponse.messages?.length) {
+        return {
+          success: true,
+          data: {
+            messages: [],
+            totalCount: 0
+          }
+        };
       }
 
-      const listResponse = await this.makeGmailRequest('messages', {
-        method: 'GET',
-      }, context);
+      // Fetch detailed message data
+      console.log('Starting to fetch detailed message data for', listResponse.messages.length, 'messages');
+      const messages: EmailData[] = await Promise.all(
+        listResponse.messages.map(async (msg: { id: string }) => {
+          const messageDetails = await this.makeGmailRequest(
+            `messages/${msg.id}?format=full`,
+            { method: 'GET' },
+            context
+          );
 
-      const messages = await Promise.all(
-        listResponse.messages.slice(0, config.maxResults || 10).map(async (msg: { id: string }) => {
-          const messageDetails = await this.makeGmailRequest(`messages/${msg.id}`, {
-            method: 'GET',
-          }, context);
-          return messageDetails;
+          const emailData: EmailData = {
+            id: messageDetails.id,
+            threadId: messageDetails.threadId
+          };
+
+          // Extract requested information based on config
+          if (config.emailInformation) {
+            const headers = messageDetails.payload.headers;
+            
+            if (config.emailInformation.includes('subjects')) {
+              emailData.subject = headers.find((h: any) => h.name === 'Subject')?.value;
+            }
+
+            if (config.emailInformation.includes('sender_addresses') || 
+                config.emailInformation.includes('sender_display_names')) {
+              const from = headers.find((h: any) => h.name === 'From')?.value;
+              const matches = from?.match(/(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)/);
+              if (matches) {
+                emailData.sender = {
+                  name: matches[1],
+                  email: matches[2]
+                };
+              }
+            }
+
+            if (config.emailInformation.includes('recipient_addresses')) {
+              const to = headers.find((h: any) => h.name === 'To')?.value;
+              emailData.recipients = to?.split(',').map((addr: string) => addr.trim());
+            }
+
+            if (config.emailInformation.includes('dates')) {
+              emailData.date = headers.find((h: any) => h.name === 'Date')?.value;
+            }
+
+            if (config.emailInformation.includes('email_bodies')) {
+              // Recursively find text/plain or text/html parts
+              const findBody = (part: any): string | undefined => {
+                if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
+                  return Buffer.from(part.body.data, 'base64').toString('utf8');
+                }
+                if (part.parts) {
+                  for (const subPart of part.parts) {
+                    const body = findBody(subPart);
+                    if (body) return body;
+                  }
+                }
+                return undefined;
+              };
+              
+              emailData.body = findBody(messageDetails.payload);
+            }
+
+            if (config.emailInformation.includes('attached_file_names')) {
+              emailData.attachments = messageDetails.payload.parts
+                ?.filter((part: any) => part.filename && part.body.attachmentId)
+                .map((part: any) => ({
+                  filename: part.filename,
+                  id: part.body.attachmentId
+                }));
+            }
+          }
+
+          console.log('Processed email data:', {
+            id: emailData.id,
+            subject: emailData.subject,
+            sender: emailData.sender
+          });
+          return emailData;
         })
       );
 
-      return {
+      const result = {
         success: true,
         data: {
           messages,
-        },
+          totalCount: listResponse.resultSizeEstimate || messages.length
+        }
       };
+      console.log('Successfully completed reading emails. Total found:', result.data.totalCount);
+      return result;
     } catch (error) {
       return {
         success: false,
         error: {
           message: error instanceof Error ? error.message : 'Failed to read unread emails',
-          details: error,
-        },
+          details: error
+        }
       };
     }
   }
@@ -139,6 +246,3 @@ export class GmailExecutor extends AbstractExecutor {
     }
   }
 }
-
-// Register the Gmail executor
-ExecutorRegistry.register('gmail', GmailExecutor);
