@@ -1,4 +1,29 @@
 import { ActionConfig } from '../services';
+import { SheetReader } from './executor';
+
+// Handler for sheet selection
+async function handleSheetSelection(fileDetails: any, currentConfig: any, context: any) {
+  try {
+    // Initialize sheet reader and get metadata
+    const sheetReader = new SheetReader();
+    const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
+
+    // Auto-select initial columns (all if ≤ 4, first 4 if > 4)
+    const initialColumns = metadata.columns.slice(0, Math.min(4, metadata.columns.length));
+
+    // Return updated configuration
+    return {
+      ...currentConfig,
+      spreadsheetId: fileDetails.id,
+      fileDetails,
+      availableColumns: metadata.columns,
+      selectedColumns: initialColumns
+    };
+  } catch (error) {
+    console.error('Error handling sheet selection:', error);
+    throw error;
+  }
+}
 
 export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
   READ_SHEET: {
@@ -15,24 +40,33 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
           serviceType: 'sheets',
           title: 'Select a spreadsheet',
           mimeTypes: ['application/vnd.google-apps.spreadsheet']
-        }
+        },
+        onValueSelect: handleSheetSelection
       },
-      // {
-      //   name: 'range',
-      //   label: 'Range (e.g., Sheet1!A1:D10)',
-      //   type: 'string',
-      //   required: true,
-      // }
+      {
+        name: 'selectedColumns',
+        label: 'Select Columns',
+        type: 'multiselect',
+        required: false,
+        options: [], // Will be populated dynamically
+        placeholder: 'Select columns to read'
+      }
     ],
     ports: {
-      inputs: [
-        // { id: 'spreadsheetId', label: 'Spreadsheet ID', type: 'string' },
-        // { id: 'range', label: 'Range', type: 'string' }
-      ],
-      outputs: [
-        { id: 'data', label: 'Sheet Data', type: 'array' },
-        { id: 'rowCount', label: 'Row Count', type: 'number' }
-      ]
+      inputs: [],
+      outputs: [] // Will be populated dynamically
+    },
+    getDynamicPorts: (config: any) => {
+      if (!config.selectedColumns) return { inputs: [], outputs: [] };
+
+      return {
+        inputs: [],
+        outputs: config.selectedColumns.map((column: string) => ({
+          id: `column_${column}`,
+          label: column,
+          type: 'string'
+        }))
+      };
     }
   },
   WRITE_SHEET: {

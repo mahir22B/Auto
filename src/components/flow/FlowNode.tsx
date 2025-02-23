@@ -93,6 +93,17 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     }
   }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
 
+  // Update ports when selectedColumns change
+  React.useEffect(() => {
+    if (config.action && actions[config.action]?.getDynamicPorts) {
+      const ports = actions[config.action].getDynamicPorts(config);
+      data.updateNodeConfig({
+        ...config,
+        ports
+      });
+    }
+  }, [config.selectedColumns, config.action]);
+
   const renderExecutionState = () => {
     if (!data.executionState) return null;
 
@@ -146,22 +157,35 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const renderPorts = () => {
     if (!config.action || !actions[config.action]?.ports) return null;
     
-    const { inputs = [], outputs = [] } = actions[config.action].ports;
+    const { inputs = [], outputs = [] } = config.ports || actions[config.action].ports;
 
     return (
       <>
         {/* Input Ports */}
         <div className="absolute -top-3 left-0 right-0 flex justify-around px-4">
-          {inputs.map((port) => (
-            <div key={port.id} className="relative group">
+          {inputs.map((port, index) => (
+            <div 
+              key={`${port.id}-${index}`} 
+              className="relative group"
+              style={{
+                width: '20px',
+                height: '20px',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative',
+                zIndex: index + 1
+              }}
+            >
               <Handle
                 type="target"
                 position={Position.Top}
                 id={port.id}
                 isConnectable={isConnectable}
                 className="w-3 h-3 !bg-white rounded-full border-2 !border-gray-400"
+                style={{ position: 'absolute', top: 0 }}
               />
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
                 {port.label}
               </div>
             </div>
@@ -170,16 +194,29 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
 
         {/* Output Ports */}
         <div className="absolute -bottom-3 left-0 right-0 flex justify-around px-4">
-          {outputs.map((port) => (
-            <div key={port.id} className="relative group">
+          {outputs.map((port, index) => (
+            <div 
+              key={`${port.id}-${index}`}
+              className="relative group"
+              style={{
+                width: '20px',
+                height: '20px',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative',
+                zIndex: index + 1
+              }}
+            >
               <Handle
                 type="source"
                 position={Position.Bottom}
                 id={port.id}
                 isConnectable={isConnectable}
                 className="w-3 h-3 !bg-white rounded-full border-2 !border-gray-400"
+                style={{ position: 'absolute', bottom: 0 }}
               />
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
                 {port.label}
               </div>
             </div>
@@ -248,7 +285,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   onChange={(e) => handleConfigChange({ [field.name]: e.target.value })}
                   placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 />
-                ) : field.type === 'select' ? (
+              ) : field.type === 'select' ? (
                 <Select
                   value={config[field.name] || ''}
                   onValueChange={(value) => handleConfigChange({ [field.name]: value })}
@@ -267,26 +304,37 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                     ))}
                   </SelectContent>
                 </Select>
-                ) : field.type === 'google-picker' ? (
-                  <GooglePicker
-                    onFileSelect={(fileDetails) => {
-                      handleConfigChange({ 
-                        [field.name]: fileDetails.id,
-                        fileDetails: fileDetails
-                      });
-                    }}
-                    selectedFile={config.fileDetails}
-                    serviceType={data.service}
-                    title={field.pickerOptions?.title}
-                    pickerOptions={{
-                      viewTypes: field.pickerOptions?.viewTypes || ['ALL_DRIVE_ITEMS'],
-                      selectFolders: field.pickerOptions?.selectFolders || false,
-                      mimeTypes: field.pickerOptions?.mimeTypes
-                    }}
-                  />
-                ):
-                
-                field.type === 'multiselect' ? (
+              ) : field.type === 'google-picker' ? (
+                <GooglePicker
+                  onFileSelect={async (fileDetails) => {
+                    try {
+                      if (field.onValueSelect) {
+                        const newConfig = await field.onValueSelect(
+                          fileDetails,
+                          config,
+                          { tokens: data.authState.tokens }
+                        );
+                        data.updateNodeConfig(newConfig);
+                      } else {
+                        handleConfigChange({ 
+                          [field.name]: fileDetails.id,
+                          fileDetails: fileDetails
+                        });
+                      }
+                    } catch (error) {
+                      console.error('Error handling file selection:', error);
+                    }
+                  }}
+                  selectedFile={config.fileDetails}
+                  serviceType={data.service}
+                  title={field.pickerOptions?.title}
+                  pickerOptions={{
+                    viewTypes: field.pickerOptions?.viewTypes || ['ALL_DRIVE_ITEMS'],
+                    selectFolders: field.pickerOptions?.selectFolders || false,
+                    mimeTypes: field.pickerOptions?.mimeTypes
+                  }}
+                />
+              ) : field.type === 'multiselect' ? (
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-2">
                     {(config[field.name] || []).map((value: string) => (
@@ -294,7 +342,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                         key={value}
                         className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm flex items-center gap-1"
                       >
-                        {value}
+                        <span className="truncate">{value}</span>
                         <button
                           onClick={() => {
                             const newValues = (config[field.name] || []).filter((v: string) => v !== value);
@@ -322,7 +370,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                       <SelectValue placeholder={field.placeholder || `Select ${field.label.toLowerCase()}`} />
                     </SelectTrigger>
                     <SelectContent>
-                      {field.options?.map((option: string) => (
+                      {(config.availableColumns || field.options)?.map((option: string) => (
                         <SelectItem 
                           key={option}
                           value={option}
@@ -334,7 +382,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                     </SelectContent>
                   </Select>
                 </div>
-                ) : (
+              ) : (
                 <Input
                   type={field.type}
                   value={config[field.name] || ''}
