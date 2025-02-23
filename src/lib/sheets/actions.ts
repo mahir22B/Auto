@@ -8,16 +8,13 @@ async function handleSheetSelection(fileDetails: any, currentConfig: any, contex
     const sheetReader = new SheetReader();
     const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
 
-    // Auto-select initial columns (all if ≤ 4, first 4 if > 4)
-    const initialColumns = metadata.columns.slice(0, Math.min(4, metadata.columns.length));
-
     // Return updated configuration
     return {
       ...currentConfig,
       spreadsheetId: fileDetails.id,
       fileDetails,
       availableColumns: metadata.columns,
-      selectedColumns: initialColumns
+      selectedColumns: []
     };
   } catch (error) {
     console.error('Error handling sheet selection:', error);
@@ -57,14 +54,16 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
       outputs: [] // Will be populated dynamically
     },
     getDynamicPorts: (config: any) => {
-      if (!config.selectedColumns) return { inputs: [], outputs: [] };
+      if (!config.selectedColumns?.length) return { inputs: [], outputs: [] };
 
+      // Ensure consistent port generation
       return {
         inputs: [],
-        outputs: config.selectedColumns.map((column: string) => ({
-          id: `column_${column}`,
+        outputs: config.selectedColumns.map((column: string, index: number) => ({
+          id: `${column.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
           label: column,
-          type: 'string'
+          type: 'string',
+          index: index // Add index for stable ordering
         }))
       };
     }
