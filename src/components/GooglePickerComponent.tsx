@@ -138,9 +138,9 @@ const GooglePicker = ({
   return (
     <div className="space-y-2">
       {selectedFile ? (
-        <div className="flex gap-2">
+        <div className="flex gap-2 min-w-0">
           <div 
-            className="flex items-center gap-2 p-2 border rounded-md flex-1 hover:bg-gray-50 cursor-pointer"
+            className="flex items-center gap-2 p-2 border rounded-md flex-1 hover:bg-gray-50 cursor-pointer min-w-0 overflow-hidden"
             onClick={openPicker}
           >
             {isFolder ? (
@@ -148,12 +148,12 @@ const GooglePicker = ({
             ) : (
               <FileText className="h-4 w-4 flex-shrink-0" />
             )}
-            <span className="text-sm truncate">{selectedFile.name}</span>
+            <span className="text-sm truncate min-w-0 flex-1">{selectedFile.name}</span>
           </div>
           <Button
             variant="outline"
             size="sm"
-            className="px-2"
+            className="px-2 flex-shrink-0 w-8"
             onClick={openInNewTab}
             title="Open in new tab"
           >

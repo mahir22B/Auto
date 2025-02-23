@@ -26,8 +26,8 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [
-        { id: 'spreadsheetId', label: 'Spreadsheet ID', type: 'string' },
-        { id: 'range', label: 'Range', type: 'string' }
+        // { id: 'spreadsheetId', label: 'Spreadsheet ID', type: 'string' },
+        // { id: 'range', label: 'Range', type: 'string' }
       ],
       outputs: [
         { id: 'data', label: 'Sheet Data', type: 'array' },
