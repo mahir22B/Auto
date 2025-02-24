@@ -158,65 +158,69 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     if (!config.action || !actions[config.action]?.ports) return null;
     
     const { inputs = [], outputs = [] } = config.ports || actions[config.action].ports;
-
+  
     return (
       <>
         {/* Input Ports */}
-        <div className="absolute -top-3 left-0 right-0 flex justify-around px-4">
+        <div className="absolute -top-3 left-0 right-0 flex justify-evenly items-center px-4">
           {inputs.map((port, index) => (
             <div 
               key={`${port.id}-${index}`} 
               className="relative group"
               style={{
-                width: '20px',
-                height: '20px',
+                width: '24px',
+                height: '24px',
                 display: 'flex',
                 justifyContent: 'center',
-                alignItems: 'center',
-                position: 'relative',
-                zIndex: index + 1
+                alignItems: 'center'
               }}
             >
               <Handle
                 type="target"
                 position={Position.Top}
                 id={port.id}
-                isConnectable={isConnectable}
-                className="w-3 h-3 !bg-white rounded-full border-2 !border-gray-400"
-                style={{ position: 'absolute', top: 0 }}
+                isConnectable={isConnectable && port.isActive}
+                className={cn(
+                  "w-3 h-3 rounded-full border",
+                  port.isActive 
+                    ? "!bg-white !border-gray-400 border-2" 
+                    : "!bg-transparent !border-gray-100 border"
+                )}
               />
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
                 {port.label}
               </div>
             </div>
           ))}
         </div>
-
+  
         {/* Output Ports */}
-        <div className="absolute -bottom-3 left-0 right-0 flex justify-around px-4">
+        <div className="absolute -bottom-3 left-0 right-0 flex justify-evenly items-center px-4">
           {outputs.map((port, index) => (
             <div 
               key={`${port.id}-${index}`}
               className="relative group"
               style={{
-                width: '20px',
-                height: '20px',
+                width: '24px',
+                height: '24px',
                 display: 'flex',
                 justifyContent: 'center',
-                alignItems: 'center',
-                position: 'relative',
-                zIndex: index + 1
+                alignItems: 'center'
               }}
             >
               <Handle
                 type="source"
                 position={Position.Bottom}
                 id={port.id}
-                isConnectable={isConnectable}
-                className="w-3 h-3 !bg-white rounded-full border-2 !border-gray-400"
-                style={{ position: 'absolute', bottom: 0 }}
+                isConnectable={isConnectable && port.isActive}
+                className={cn(
+                  "w-3 h-3 rounded-full border transition-all duration-200",
+                  port.isActive 
+                    ? "!bg-white !border-gray-400 border-2" 
+                    : "!bg-transparent !border-gray-100 border"
+                )}
               />
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
                 {port.label}
               </div>
             </div>
@@ -225,7 +229,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
       </>
     );
   };
-
   const renderHeader = (actionName?: string) => (
     <div className="relative">
       <div className="flex items-center gap-2 mb-4">

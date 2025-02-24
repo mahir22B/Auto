@@ -38,7 +38,35 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
           title: 'Select a spreadsheet',
           mimeTypes: ['application/vnd.google-apps.spreadsheet']
         },
-        onValueSelect: handleSheetSelection
+        onValueSelect: async (fileDetails: any, currentConfig: any, context: any) => {
+          try {
+            const sheetReader = new SheetReader();
+            const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
+            
+            // Create static ports for all available columns
+            const ports = {
+              inputs: [],
+              outputs: metadata.columns.map(column => ({
+                id: `output_${column}`,
+                label: column,
+                type: 'string',
+                isActive: false // Initially all ports are inactive
+              }))
+            };
+
+            return {
+              ...currentConfig,
+              spreadsheetId: fileDetails.id,
+              fileDetails,
+              availableColumns: metadata.columns,
+              selectedColumns: [],
+              ports
+            };
+          } catch (error) {
+            console.error('Error handling sheet selection:', error);
+            throw error;
+          }
+        }
       },
       {
         name: 'selectedColumns',
@@ -51,19 +79,17 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [],
-      outputs: [] // Will be populated dynamically
+      outputs: [] // Will be populated with all available columns
     },
     getDynamicPorts: (config: any) => {
-      if (!config.selectedColumns?.length) return { inputs: [], outputs: [] };
+      if (!config.ports) return { inputs: [], outputs: [] };
 
-      // Ensure consistent port generation
+      // Update active state based on selected columns
       return {
         inputs: [],
-        outputs: config.selectedColumns.map((column: string, index: number) => ({
-          id: `${column.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-          label: column,
-          type: 'string',
-          index: index // Add index for stable ordering
+        outputs: config.ports.outputs.map(port => ({
+          ...port,
+          isActive: config.selectedColumns?.includes(port.label) || false
         }))
       };
     }
