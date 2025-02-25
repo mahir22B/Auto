@@ -15,6 +15,8 @@ export interface ConfigField {
   required: boolean;
   placeholder?: string;
   options?: any[];
+  dependencies?: string[];
+  visibilityCondition?: (config: any) => boolean;
   pickerOptions?: {
     serviceType?: string;
     title?: string;

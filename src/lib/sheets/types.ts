@@ -1,3 +1,4 @@
+// src/lib/sheets/types.ts
 export type SheetsAction = 'READ_SHEET' | 'WRITE_SHEET' | 'UPDATE_SHEET';
 
 export interface SheetMetadata {
@@ -9,7 +10,11 @@ export interface SheetsConfig {
   spreadsheetId?: string;
   range?: string;
   values?: string;
-  // New fields for READ_SHEET
+  sheetName?: string;
+  searchColumn?: string;
+  searchValue?: string;
+  updaterMode?: 'single' | 'multiple';
+  // Fields used for READ_SHEET, WRITE_SHEET, and UPDATE_SHEET
   fileDetails?: {
     id: string;
     name: string;
@@ -18,9 +23,32 @@ export interface SheetsConfig {
   };
   availableColumns?: string[];
   selectedColumns?: string[];
+  // Dynamic port configuration
+  ports?: {
+    inputs: Array<{
+      id: string;
+      label: string;
+      type: string;
+      isActive: boolean;
+    }>;
+    outputs: Array<{
+      id: string;
+      label: string;
+      type: string;
+      isActive: boolean;
+    }>;
+  };
 }
 
 // Result type for sheet data
 export interface SheetData {
   [columnName: string]: any[];
+}
+
+// Write operation result
+export interface SheetWriteResult {
+  success: boolean;
+  updatedRows?: number;
+  sheetLink?: string;
+  error?: string;
 }
