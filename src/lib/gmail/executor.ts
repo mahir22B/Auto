@@ -1,6 +1,6 @@
-import { ExecutorContext, ExecutionResult } from '../executors/types';
-import { AbstractExecutor } from '../executors/AbstractExecutor';
-import { GmailConfig } from './types';
+import { ExecutorContext, ExecutionResult } from "../executors/types";
+import { AbstractExecutor } from "../executors/AbstractExecutor";
+import { GmailConfig } from "./types";
 
 interface EmailData {
   id: string;
@@ -26,7 +26,7 @@ export class GmailExecutor extends AbstractExecutor {
     context: ExecutorContext
   ) {
     const response = await this.makeAuthorizedRequest(
-      'gmail',
+      "gmail",
       `https://www.googleapis.com/gmail/v1/users/me/${endpoint}`,
       options
     );
@@ -37,23 +37,25 @@ export class GmailExecutor extends AbstractExecutor {
     context: ExecutorContext,
     config: GmailConfig
   ): Promise<ExecutionResult> {
-    console.log('Starting to read unread emails with config:', config);
+    console.log("Starting to read unread emails with config:", config);
     try {
       // Construct search query
-      const queryParts = ['is:unread'];
+      const queryParts = ["is:unread"];
       if (config.label) {
         queryParts.push(`in:${config.label.toLowerCase()}`);
       }
-      const query = queryParts.join(' ');
+      const query = queryParts.join(" ");
 
       // Fetch message list
-      console.log('Searching for emails with query:', query);
+      console.log("Searching for emails with query:", query);
       const listResponse = await this.makeGmailRequest(
-        `messages?q=${encodeURIComponent(query)}&maxResults=${config.maxResults || 10}`,
-        { method: 'GET' },
+        `messages?q=${encodeURIComponent(query)}&maxResults=${
+          config.maxResults || 10
+        }`,
+        { method: "GET" },
         context
       );
-      console.log('Found messages:', listResponse);
+      console.log("Found messages:", listResponse);
 
       if (!listResponse.messages?.length) {
         return {
@@ -63,62 +65,79 @@ export class GmailExecutor extends AbstractExecutor {
             totalCount: 0,
             summary: {
               unreadCount: 0,
-              label: config.label || 'INBOX',
-              uniqueSenders: 0
-            }
-          }
+              label: config.label || "INBOX",
+              uniqueSenders: 0,
+            },
+          },
         };
       }
 
       // Fetch detailed message data
-      console.log('Starting to fetch detailed message data for', listResponse.messages.length, 'messages');
+      console.log(
+        "Starting to fetch detailed message data for",
+        listResponse.messages.length,
+        "messages"
+      );
       const messages: EmailData[] = await Promise.all(
         listResponse.messages.map(async (msg: { id: string }) => {
           const messageDetails = await this.makeGmailRequest(
             `messages/${msg.id}?format=full`,
-            { method: 'GET' },
+            { method: "GET" },
             context
           );
 
           const emailData: EmailData = {
             id: messageDetails.id,
-            threadId: messageDetails.threadId
+            threadId: messageDetails.threadId,
           };
 
           // Extract requested information based on config
           if (config.emailInformation) {
             const headers = messageDetails.payload.headers;
-            
-            if (config.emailInformation.includes('subjects')) {
-              emailData.subject = headers.find((h: any) => h.name === 'Subject')?.value;
+
+            if (config.emailInformation.includes("subjects")) {
+              emailData.subject = headers.find(
+                (h: any) => h.name === "Subject"
+              )?.value;
             }
 
-            if (config.emailInformation.includes('sender_addresses') || 
-                config.emailInformation.includes('sender_display_names')) {
-              const from = headers.find((h: any) => h.name === 'From')?.value;
-              const matches = from?.match(/(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)/);
+            if (
+              config.emailInformation.includes("sender_addresses") ||
+              config.emailInformation.includes("sender_display_names")
+            ) {
+              const from = headers.find((h: any) => h.name === "From")?.value;
+              const matches = from?.match(
+                /(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)/
+              );
               if (matches) {
                 emailData.sender = {
-                  name: matches[1] || '',
-                  email: matches[2]
+                  name: matches[1] || "",
+                  email: matches[2],
                 };
               }
             }
 
-            if (config.emailInformation.includes('recipient_addresses')) {
-              const to = headers.find((h: any) => h.name === 'To')?.value;
-              emailData.recipients = to?.split(',').map((addr: string) => addr.trim());
+            if (config.emailInformation.includes("recipient_addresses")) {
+              const to = headers.find((h: any) => h.name === "To")?.value;
+              emailData.recipients = to
+                ?.split(",")
+                .map((addr: string) => addr.trim());
             }
 
-            if (config.emailInformation.includes('dates')) {
-              emailData.date = headers.find((h: any) => h.name === 'Date')?.value;
+            if (config.emailInformation.includes("dates")) {
+              emailData.date = headers.find(
+                (h: any) => h.name === "Date"
+              )?.value;
             }
 
-            if (config.emailInformation.includes('email_bodies')) {
+            if (config.emailInformation.includes("email_bodies")) {
               // Recursively find text/plain or text/html parts
               const findBody = (part: any): string | undefined => {
-                if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
-                  return Buffer.from(part.body.data, 'base64').toString('utf8');
+                if (
+                  part.mimeType === "text/plain" ||
+                  part.mimeType === "text/html"
+                ) {
+                  return Buffer.from(part.body.data, "base64").toString("utf8");
                 }
                 if (part.parts) {
                   for (const subPart of part.parts) {
@@ -128,56 +147,83 @@ export class GmailExecutor extends AbstractExecutor {
                 }
                 return undefined;
               };
-              
+
               emailData.body = findBody(messageDetails.payload);
             }
 
-            if (config.emailInformation.includes('attached_file_names')) {
+            if (config.emailInformation.includes("attached_file_names")) {
               emailData.attachments = messageDetails.payload.parts
                 ?.filter((part: any) => part.filename && part.body.attachmentId)
                 .map((part: any) => ({
                   filename: part.filename,
-                  id: part.body.attachmentId
+                  id: part.body.attachmentId,
                 }));
             }
           }
 
-          console.log('Processed email data:', {
+          console.log("Processed email data:", {
             id: emailData.id,
             subject: emailData.subject,
-            sender: emailData.sender
+            sender: emailData.sender,
           });
           return emailData;
         })
       );
 
       // Format the data for display in the results panel
-      const formattedMessages = messages.map(msg => ({
+      const formattedMessages = messages.map((msg) => ({
         ...msg,
-        displayText: `Reading email → Subject: ${msg.subject || 'No Subject'}, From: ${msg.sender?.name || ''} <${msg.sender?.email || 'unknown'}>`
+        displayText: `Reading email → Subject: ${
+          msg.subject || "No Subject"
+        }, From: ${msg.sender?.name || ""} <${msg.sender?.email || "unknown"}>`,
       }));
+
 
       const result = {
         success: true,
         data: {
           messages: formattedMessages,
           totalCount: listResponse.resultSizeEstimate || messages.length,
+          // Add individual arrays for each email information type with output_ prefix
+          output_email_bodies: messages.map((msg) => msg.body || null),
+          output_attached_file_names: messages.map(
+            (msg) => msg.attachments?.map((a) => a.filename) || []
+          ),
+          output_message_ids: messages.map((msg) => msg.id),
+          output_thread_ids: messages.map((msg) => msg.threadId),
+          output_sender_addresses: messages.map(
+            (msg) => msg.sender?.email || null
+          ),
+          output_recipient_addresses: messages.map(
+            (msg) => msg.recipients || []
+          ),
+          output_subjects: messages.map((msg) => msg.subject || null),
+          output_dates: messages.map((msg) => msg.date || null),
+          output_sender_display_names: messages.map(
+            (msg) => msg.sender?.name || null
+          ),
+          // Summary remains the same
           summary: {
             unreadCount: messages.length,
-            label: config.label || 'INBOX',
-            uniqueSenders: new Set(messages.map(msg => msg.sender?.email).filter(Boolean)).size
-          }
-        }
+            label: config.label || "INBOX",
+            uniqueSenders: new Set(
+              messages.map((msg) => msg.sender?.email).filter(Boolean)
+            ).size,
+          },
+        },
       };
-      console.log('Successfully completed reading emails. Total found:', result.data.totalCount);
+      // console.log('Successfully completed reading emails. Total found:', result.data.totalCount);
       return result;
     } catch (error) {
       return {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : 'Failed to read unread emails',
-          details: error
-        }
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to read unread emails",
+          details: error,
+        },
       };
     }
   }
@@ -188,59 +234,65 @@ export class GmailExecutor extends AbstractExecutor {
   ): Promise<ExecutionResult> {
     try {
       if (!config.to || !config.subject || !config.body) {
-        throw new Error('Missing required fields for sending email');
+        throw new Error("Missing required fields for sending email");
       }
 
       const email = [
         `To: ${config.to}`,
         `Subject: ${config.subject}`,
-        'Content-Type: text/plain; charset=utf-8',
-        '',
-        config.body
-      ].join('\r\n');
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        config.body,
+      ].join("\r\n");
 
-      const encodedEmail = Buffer.from(email).toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
+      const encodedEmail = Buffer.from(email)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
 
-      const response = await this.makeGmailRequest('messages/send', {
-        method: 'POST',
-        body: JSON.stringify({
-          raw: encodedEmail,
-        }),
-      }, context);
+      const response = await this.makeGmailRequest(
+        "messages/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            raw: encodedEmail,
+          }),
+        },
+        context
+      );
 
       return {
         success: true,
         data: {
-          status: 'Email sent successfully',
+          status: "Email sent successfully",
           messageId: response.id,
           threadId: response.threadId,
           details: {
             to: config.to,
             subject: config.subject,
             timestamp: new Date().toISOString(),
-            displayText: `Email sent → To: ${config.to}, Subject: ${config.subject}`
-          }
-        }
+            displayText: `Email sent → To: ${config.to}, Subject: ${config.subject}`,
+          },
+        },
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : 'Failed to send email',
-          details: error
+          message:
+            error instanceof Error ? error.message : "Failed to send email",
+          details: error,
         },
         data: {
-          status: 'Email sending failed',
+          status: "Email sending failed",
           attempted: {
             to: config.to,
             subject: config.subject,
             timestamp: new Date().toISOString(),
-            displayText: `Failed to send email → To: ${config.to}, Subject: ${config.subject}`
-          }
-        }
+            displayText: `Failed to send email → To: ${config.to}, Subject: ${config.subject}`,
+          },
+        },
       };
     }
   }
@@ -249,12 +301,12 @@ export class GmailExecutor extends AbstractExecutor {
     context: ExecutorContext,
     config: GmailConfig
   ): Promise<ExecutionResult> {
-    console.log('Executing Gmail action:', config.action);
+    console.log("Executing Gmail action:", config.action);
     try {
       switch (config.action) {
-        case 'READ_UNREAD':
+        case "READ_UNREAD":
           return this.readUnreadEmails(context, config);
-        case 'SEND_EMAIL':
+        case "SEND_EMAIL":
           return this.sendEmail(context, config);
         default:
           return {
@@ -265,13 +317,16 @@ export class GmailExecutor extends AbstractExecutor {
           };
       }
     } catch (error) {
-      console.error('Gmail executor error:', error);
+      console.error("Gmail executor error:", error);
       return {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : 'An error occurred during execution',
-          details: error
-        }
+          message:
+            error instanceof Error
+              ? error.message
+              : "An error occurred during execution",
+          details: error,
+        },
       };
     }
   }

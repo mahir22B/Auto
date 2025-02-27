@@ -53,12 +53,29 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     setConfig(data.config);
   }, [data.config]);
 
-  const handleConfigChange = (updates: Partial<any>) => {
-    const newConfig = { ...config, ...updates };
-    console.log("Updating config:", newConfig);
-    setConfig(newConfig);
-    data.updateNodeConfig(newConfig);
-  };
+
+const handleConfigChange = (updates: Partial<any>) => {
+  const newConfig = { ...config, ...updates };
+  console.log("Updating config:", newConfig);
+  setConfig(newConfig);
+  
+  // Update ports when relevant selections change
+  if (
+    (updates.selectedColumns && data.service === 'sheets') || 
+    (updates.emailInformation && data.service === 'gmail')
+  ) {
+    if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
+      const ports = actions[newConfig.action].getDynamicPorts(newConfig);
+      data.updateNodeConfig({
+        ...newConfig,
+        ports,
+      });
+      return;
+    }
+  }
+  
+  data.updateNodeConfig(newConfig);
+};
 
   const handleActionSelect = async (action: string) => {
     if (!data.authState.isAuthenticated) {
@@ -99,15 +116,21 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
 
   // Update ports when selectedColumns change
-  React.useEffect(() => {
-    if (config.action && actions[config.action]?.getDynamicPorts) {
-      const ports = actions[config.action].getDynamicPorts(config);
-      data.updateNodeConfig({
-        ...config,
-        ports,
-      });
-    }
-  }, [config.selectedColumns, config.action]);
+React.useEffect(() => {
+  if (
+    (config.action && actions[config.action]?.getDynamicPorts) && 
+    (
+      (data.service === 'sheets' && config.selectedColumns) ||
+      (data.service === 'gmail' && config.emailInformation)
+    )
+  ) {
+    const ports = actions[config.action].getDynamicPorts(config);
+    data.updateNodeConfig({
+      ...config,
+      ports,
+    });
+  }
+}, [config.selectedColumns, config.emailInformation, config.action]);
 
   const renderExecutionState = () => {
     if (!data.executionState) return null;
@@ -178,7 +201,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           {inputs.map((port, index) => (
             <div
               key={`${port.id}-${index}`}
-              className="relative group"
+              className={`relative ${port.isActive ? 'group' : 'pointer-events-none'}`}
               style={{
                 width: "24px",
                 height: "24px",
@@ -196,7 +219,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   "w-3 h-3 rounded-full border",
                   port.isActive
                     ? "!bg-white !border-gray-400 border-2"
-                    : "!bg-transparent !border-gray-100 border"
+                    : "!bg-transparent !border-transparent border opacity-0"
                 )}
               />
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
@@ -211,7 +234,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           {outputs.map((port, index) => (
             <div
               key={`${port.id}-${index}`}
-              className="relative group"
+              className={`relative ${port.isActive ? 'group' : 'pointer-events-none'}`}
               style={{
                 width: "24px",
                 height: "24px",
@@ -229,7 +252,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   "w-3 h-3 rounded-full border transition-all duration-200",
                   port.isActive
                     ? "!bg-white !border-gray-400 border-2"
-                    : "!bg-transparent !border-gray-100 border"
+                    : "!bg-transparent !border-transparent border opacity-0"
                 )}
               />
               <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
@@ -280,7 +303,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
       </Card>
     );
   }
-  
+
   const isFieldVisible = (field: any, config: any): boolean => {
     // If no dependencies specified, field is always visible
     if (!field.dependencies || field.dependencies.length === 0) {

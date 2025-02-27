@@ -6,6 +6,7 @@ export interface Port {
   id: string;
   label: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  isActive?: boolean;
 }
 
 export interface ConfigField {
