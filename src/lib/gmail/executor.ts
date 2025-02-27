@@ -60,7 +60,12 @@ export class GmailExecutor extends AbstractExecutor {
           success: true,
           data: {
             messages: [],
-            totalCount: 0
+            totalCount: 0,
+            summary: {
+              unreadCount: 0,
+              label: config.label || 'INBOX',
+              uniqueSenders: 0
+            }
           }
         };
       }
@@ -94,7 +99,7 @@ export class GmailExecutor extends AbstractExecutor {
               const matches = from?.match(/(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)/);
               if (matches) {
                 emailData.sender = {
-                  name: matches[1],
+                  name: matches[1] || '',
                   email: matches[2]
                 };
               }
@@ -146,11 +151,22 @@ export class GmailExecutor extends AbstractExecutor {
         })
       );
 
+      // Format the data for display in the results panel
+      const formattedMessages = messages.map(msg => ({
+        ...msg,
+        displayText: `Reading email → Subject: ${msg.subject || 'No Subject'}, From: ${msg.sender?.name || ''} <${msg.sender?.email || 'unknown'}>`
+      }));
+
       const result = {
         success: true,
         data: {
-          messages,
-          totalCount: listResponse.resultSizeEstimate || messages.length
+          messages: formattedMessages,
+          totalCount: listResponse.resultSizeEstimate || messages.length,
+          summary: {
+            unreadCount: messages.length,
+            label: config.label || 'INBOX',
+            uniqueSenders: new Set(messages.map(msg => msg.sender?.email).filter(Boolean)).size
+          }
         }
       };
       console.log('Successfully completed reading emails. Total found:', result.data.totalCount);
@@ -204,7 +220,8 @@ export class GmailExecutor extends AbstractExecutor {
           details: {
             to: config.to,
             subject: config.subject,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            displayText: `Email sent → To: ${config.to}, Subject: ${config.subject}`
           }
         }
       };
@@ -220,7 +237,8 @@ export class GmailExecutor extends AbstractExecutor {
           attempted: {
             to: config.to,
             subject: config.subject,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            displayText: `Failed to send email → To: ${config.to}, Subject: ${config.subject}`
           }
         }
       };
@@ -231,18 +249,30 @@ export class GmailExecutor extends AbstractExecutor {
     context: ExecutorContext,
     config: GmailConfig
   ): Promise<ExecutionResult> {
-    switch (config.action) {
-      case 'READ_UNREAD':
-        return this.readUnreadEmails(context, config);
-      case 'SEND_EMAIL':
-        return this.sendEmail(context, config);
-      default:
-        return {
-          success: false,
-          error: {
-            message: `Unsupported Gmail action: ${config.action}`,
-          },
-        };
+    console.log('Executing Gmail action:', config.action);
+    try {
+      switch (config.action) {
+        case 'READ_UNREAD':
+          return this.readUnreadEmails(context, config);
+        case 'SEND_EMAIL':
+          return this.sendEmail(context, config);
+        default:
+          return {
+            success: false,
+            error: {
+              message: `Unsupported Gmail action: ${config.action}`,
+            },
+          };
+      }
+    } catch (error) {
+      console.error('Gmail executor error:', error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'An error occurred during execution',
+          details: error
+        }
+      };
     }
   }
 }

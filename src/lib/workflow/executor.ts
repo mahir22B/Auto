@@ -4,7 +4,6 @@ import { Node, Edge } from 'reactflow';
 import { ExecutorRegistry } from '../executors/registry';
 import { ExecutorContext } from '../executors/types';
 
-
 export class WorkflowExecutor {
   private getNodeOrder(nodes: Node[], edges: Edge[]): string[] {
     const nodeOrder: string[] = [];
@@ -25,7 +24,7 @@ export class WorkflowExecutor {
       const childEdges = edges.filter(edge => edge.source === node.id);
       const childNodes = childEdges.map(edge => 
         nodes.find(n => n.id === edge.target)!
-      );
+      ).filter(Boolean); // Filter out undefined nodes
 
       childNodes.forEach(visit);
     };
@@ -43,8 +42,14 @@ export class WorkflowExecutor {
     const nodeResults: Record<string, any> = {};
     const nodeOutputs: Record<string, any> = {};
 
+    console.log('Executing workflow with node order:', nodeOrder);
+
     for (const nodeId of nodeOrder) {
-      const node = nodes.find(n => n.id === nodeId)!;
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node) {
+        console.error(`Node ${nodeId} not found`);
+        continue;
+      }
       
       try {
         // Simply check if we have an action selected
@@ -54,7 +59,36 @@ export class WorkflowExecutor {
 
         // Get inputs from parent nodes
         const inputEdges = edges.filter(edge => edge.target === nodeId);
-        const inputs = inputEdges.map(edge => nodeOutputs[edge.source]);
+        const inputs: any[] = [];
+        
+        // Process input edges to get data from source nodes
+        for (const edge of inputEdges) {
+          const sourceNodeId = edge.source;
+          const sourceNode = nodes.find(n => n.id === sourceNodeId);
+          
+          if (sourceNode && nodeOutputs[sourceNodeId]) {
+            // If the edge has specific source/target handles, try to get that specific data
+            if (edge.sourceHandle && edge.targetHandle) {
+              // Extract source handle ID without prefix
+              const sourceField = edge.sourceHandle.replace('output_', '');
+              
+              // Get specific field data if available
+              if (nodeOutputs[sourceNodeId][sourceField]) {
+                inputs.push({
+                  sourceNode: sourceNode.id,
+                  targetHandle: edge.targetHandle,
+                  data: nodeOutputs[sourceNodeId][sourceField]
+                });
+              }
+            } else {
+              // Push the entire output
+              inputs.push({
+                sourceNode: sourceNode.id,
+                data: nodeOutputs[sourceNodeId]
+              });
+            }
+          }
+        }
 
         // Get the appropriate executor
         const executor = ExecutorRegistry.getExecutor(node.type);
@@ -72,23 +106,29 @@ export class WorkflowExecutor {
         
         // Execute the node
         console.log(`Executing node ${nodeId} with config:`, node.data.config);
+        const startTime = Date.now();
         const result = await executor.execute(context, node.data.config);
+        const executionTime = (Date.now() - startTime) / 1000;
+        
         console.log(`Node ${nodeId} result:`, result);
 
-        nodeResults[nodeId] = result;
+        nodeResults[nodeId] = {
+          ...result,
+          executionTime,
+          inputs
+        };
         nodeOutputs[nodeId] = result.data;
 
         if (!result.success) {
           console.error(`Node ${nodeId} failed:`, result.error);
-          break;
         }
       } catch (error) {
         console.error(`Error executing node ${nodeId}:`, error);
         nodeResults[nodeId] = {
           success: false,
-          error: error instanceof Error ? error.message : 'Execution failed'
+          error: error instanceof Error ? error.message : 'Execution failed',
+          executionTime: 0
         };
-        break;
       }
     }
 
