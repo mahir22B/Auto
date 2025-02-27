@@ -21,12 +21,10 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
       }
     ],
     ports: {
-      inputs: [
-        // { id: 'fileId', label: 'File ID', type: 'string' }
-      ],
+      inputs: [],
       outputs: [
-        { id: 'fileName', label: 'File Name', type: 'string' },
-        { id: 'content', label: 'File Contents', type: 'string' }
+        { id: 'output_fileName', label: 'File Name', type: 'string', isActive: true },
+        { id: 'output_fileContents', label: 'File Contents', type: 'string', isActive: true }
       ]
     }
   },
@@ -50,12 +48,9 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
       }
     ],
     ports: {
-      inputs: [
-        { id: 'folderId', label: 'Folder ID', type: 'string' }
-      ],
+      inputs: [],
       outputs: [
-        { id: 'files', label: 'Files', type: 'array' },
-        { id: 'count', label: 'File Count', type: 'number' }
+        { id: 'output_files', label: 'Files', type: 'array', isActive: true }
       ]
     }
   },
@@ -92,13 +87,11 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [
-        { id: 'folderId', label: 'Folder ID', type: 'string' },
-        { id: 'fileName', label: 'File Name', type: 'string' },
-        { id: 'content', label: 'Content', type: 'string' }
+        { id: 'input_fileName', label: 'File Name', type: 'string', isActive: true },
+        { id: 'input_content', label: 'File Content', type: 'string', isActive: true }
       ],
       outputs: [
-        { id: 'fileId', label: 'File ID', type: 'string' },
-        { id: 'status', label: 'Status', type: 'boolean' }
+        { id: 'output_fileUrl', label: 'Drive URL', type: 'string', isActive: true }
       ]
     }
   }

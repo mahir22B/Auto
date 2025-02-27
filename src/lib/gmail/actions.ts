@@ -51,12 +51,8 @@ export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
       }
     ],
     ports: {
-      inputs: [
-        // { id: 'maxResults', label: 'Max Results', type: 'number', isActive: true },
-        // { id: 'label', label: 'Label', type: 'string', isActive: true }
-      ],
+      inputs: [],
       outputs: [
-        // All outputs start inactive and will be activated based on selection
         { id: 'output_email_bodies', label: 'Email Bodies', type: 'array', isActive: false },
         { id: 'output_attached_file_names', label: 'Attachments', type: 'array', isActive: false },
         { id: 'output_message_ids', label: 'Message IDs', type: 'array', isActive: false },
@@ -70,21 +66,13 @@ export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
     },
     getDynamicPorts: (config: any) => {
       if (!config.emailInformation) return {
-        inputs: [
-          // { id: 'maxResults', label: 'Max Results', type: 'number', isActive: true },
-          // { id: 'label', label: 'Label', type: 'string', isActive: true }
-        ],
-        outputs: [] // No active outputs until user selects something
+        inputs: [],
+        outputs: []
       };
       
-      // Update the active state of outputs based on emailInformation selections
       return {
-        inputs: [
-          // { id: 'maxResults', label: 'Max Results', type: 'number', isActive: true },
-          // { id: 'label', label: 'Label', type: 'string', isActive: true }
-        ],
+        inputs: [],
         outputs: [
-          // Each output corresponds to an email information type
           { id: 'output_email_bodies', label: 'Email Bodies', type: 'array', 
             isActive: config.emailInformation.includes('email_bodies') },
           { id: 'output_attached_file_names', label: 'Attachments', type: 'array', 
@@ -136,13 +124,12 @@ export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [
-        { id: 'to', label: 'To', type: 'string' },
-        { id: 'subject', label: 'Subject', type: 'string' },
-        { id: 'body', label: 'Body', type: 'string' }
+        { id: 'input_to', label: 'To', type: 'string', isActive: true },
+        { id: 'input_subject', label: 'Subject', type: 'string', isActive: true },
+        { id: 'input_body', label: 'Body', type: 'string', isActive: true }
       ],
       outputs: [
-        { id: 'status', label: 'Status', type: 'boolean' },
-        { id: 'messageId', label: 'Message ID', type: 'string' }
+        { id: 'output_status', label: 'Email Status', type: 'boolean', isActive: true }
       ]
     }
   }

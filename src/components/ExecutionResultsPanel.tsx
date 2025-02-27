@@ -1,5 +1,29 @@
-import React from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, RefreshCw, X } from 'lucide-react';
+import React from "react";
+import {
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  X,
+  ExternalLink,
+} from "lucide-react";
+import { SERVICES } from "@/lib/services";
+
+// Import this utility function to get node display names
+const getNodeDisplayName = (node: any): string => {
+  if (!node) return "Unknown Node";
+
+  // If the node has a type and action, try to get the name from services config
+  if (node.type && node.data?.config?.action) {
+    const serviceConfig = SERVICES[node.type];
+    if (serviceConfig && serviceConfig.actions[node.data.config.action]) {
+      return serviceConfig.actions[node.data.config.action].name;
+    }
+  }
+
+  // Fallback to node ID if we can't find a proper name
+  return node.id || "Unknown Node";
+};
 
 interface ExecutionResultsProps {
   isOpen: boolean;
@@ -12,25 +36,29 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
   isOpen,
   onClose,
   results,
-  isExecuting
+  isExecuting,
 }) => {
   // Removed tabs state as we're only showing current run
-  const [expandedNodes, setExpandedNodes] = React.useState<Record<string, boolean>>({});
-  const [expandedDetails, setExpandedDetails] = React.useState<Record<string, boolean>>({});
+  const [expandedNodes, setExpandedNodes] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [expandedDetails, setExpandedDetails] = React.useState<
+    Record<string, boolean>
+  >({});
 
   // Toggle node expansion
   const toggleNodeExpansion = (nodeId: string) => {
-    setExpandedNodes(prev => ({
+    setExpandedNodes((prev) => ({
       ...prev,
-      [nodeId]: !prev[nodeId]
+      [nodeId]: !prev[nodeId],
     }));
   };
 
   // Toggle details expansion
   const toggleDetailsExpansion = (nodeId: string) => {
-    setExpandedDetails(prev => ({
+    setExpandedDetails((prev) => ({
       ...prev,
-      [nodeId]: !prev[nodeId]
+      [nodeId]: !prev[nodeId],
     }));
   };
 
@@ -38,7 +66,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     if (!result.success || !result.data || !result.data.messages) {
       return (
         <div className="text-red-500">
-          {result.error?.message || 'Failed to read emails'}
+          {result.error?.message || "Failed to read emails"}
         </div>
       );
     }
@@ -50,15 +78,16 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
         {messages.map((message: any, index: number) => (
           <div key={index} className="p-2">
             <div className="text-blue-600">
-              Reading email → Subject: {message.subject || 'No Subject'},
-              From: {message.sender?.name || ''} &lt;{message.sender?.email || 'unknown'}&gt;
+              Reading email → Subject: {message.subject || "No Subject"}, From:{" "}
+              {message.sender?.name || ""} &lt;
+              {message.sender?.email || "unknown"}&gt;
             </div>
           </div>
         ))}
-        
+
         {messages.length === 0 && (
           <div className="p-2 text-gray-500 italic">
-            No unread emails found in {summary?.label || 'inbox'}
+            No unread emails found in {summary?.label || "inbox"}
           </div>
         )}
       </div>
@@ -67,42 +96,160 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
 
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
     switch (node.type) {
-      case 'gmail':
-        if (node.data.config.action === 'READ_UNREAD') {
+      case "gmail":
+        if (node.data.config.action === "READ_UNREAD") {
           return renderGmailReaderResults(nodeId, result);
-        } else if (node.data.config.action === 'SEND_EMAIL') {
+        } else if (node.data.config.action === "SEND_EMAIL") {
           return (
             <div className="p-2">
               <div className="text-blue-600">
-                {result.success 
-                  ? result.data.details?.displayText || `Email sent → To: ${result.data.details?.to}, Subject: ${result.data.details?.subject}`
-                  : result.data.attempted?.displayText || 'Failed to send email'}
+                {result.success
+                  ? result.data.details?.displayText ||
+                    `Email sent → To: ${result.data.details?.to}, Subject: ${result.data.details?.subject}`
+                  : result.data.attempted?.displayText ||
+                    "Failed to send email"}
               </div>
             </div>
           );
         }
         break;
-      
-      case 'sheets':
+
+      case "gdrive":
+        // Add Google Drive specific renderer
+        // Replace only the gdrive WRITE_FILE case in renderNodeResults
+        // Replace only the gdrive WRITE_FILE case in renderNodeResults
+        if (node.data.config.action === "WRITE_FILE") {
+          return (
+            <div className="p-2">
+              {result.success ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-green-600">Success</span>
+                    <span className="text-gray-400">|</span>
+                    <span className="text-gray-600">Drive URL:</span>
+                  </div>
+
+                  {result.data?.output_fileUrl ? (
+                    <a
+                      href={result.data.output_fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-blue-500 hover:underline"
+                    >
+                      <span>Open in Google Drive</span>
+                      <ExternalLink className="ml-1 h-4 w-4" />
+                    </a>
+                  ) : (
+                    <div className="text-yellow-600">
+                      Unable to generate file URL
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-red-500">
+                  {result.error?.message || "Failed to write file"}
+                </div>
+              )}
+            </div>
+          );
+        } else if (node.data.config.action === "READ_FILE") {
+          return (
+            <div className="p-2">
+              <div className="text-blue-600">
+                {result.success
+                  ? `Read file: ${
+                      result.data.output_fileName || "Unknown file"
+                    }`
+                  : `Failed to read file: ${result.error?.message}`}
+              </div>
+              {result.success && result.data.output_fileContents && (
+                <div className="mt-2 bg-gray-50 p-3 rounded max-h-40 overflow-auto">
+                  <pre className="text-sm whitespace-pre-wrap">
+                    {typeof result.data.output_fileContents === "string" &&
+                    result.data.output_fileContents.length > 500
+                      ? result.data.output_fileContents.substring(0, 500) +
+                        "..."
+                      : result.data.output_fileContents}
+                  </pre>
+                </div>
+              )}
+            </div>
+          );
+        } else if (node.data.config.action === "READ_FOLDER") {
+          return (
+            <div className="p-2">
+              <div className="text-blue-600">
+                {result.success
+                  ? `Read folder: ${
+                      result.data.folderName || "Unknown folder"
+                    } (${result.data.fileCount || 0} files)`
+                  : `Failed to read folder: ${result.error?.message}`}
+              </div>
+              {result.success &&
+                result.data.output_files &&
+                result.data.output_files.length > 0 && (
+                  <div className="mt-2 bg-gray-50 p-3 rounded max-h-40 overflow-auto">
+                    <div className="text-sm">Files:</div>
+                    <ul className="list-disc pl-5 text-sm">
+                      {result.data.output_files
+                        .slice(0, 10)
+                        .map((file: any, index: number) => (
+                          <li key={index} className="text-gray-700">
+                            {file.name}
+                            {file.webViewLink && (
+                              <a
+                                href={file.webViewLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 underline ml-2 text-xs"
+                              >
+                                Open
+                              </a>
+                            )}
+                          </li>
+                        ))}
+                      {result.data.output_files.length > 10 && (
+                        <li className="text-gray-500 italic">
+                          ...and {result.data.output_files.length - 10} more
+                          files
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+            </div>
+          );
+        }
+        break;
+
+      case "sheets":
         // Add sheets specific renderer
         return (
           <div className="p-2">
             <div className="text-blue-600">
-              {result.success 
-                ? `Sheets operation completed: ${result.data?.message || 'Successfully'}`
-                : `Sheets operation failed: ${result.error?.message || 'Unknown error'}`}
+              {result.success
+                ? `Sheets operation completed: ${
+                    result.data?.message || "Successfully"
+                  }`
+                : `Sheets operation failed: ${
+                    result.error?.message || "Unknown error"
+                  }`}
             </div>
             {result.data?.sheetLink && (
               <div className="mt-2">
-                <a href={result.data.sheetLink} target="_blank" rel="noopener noreferrer" 
-                   className="text-blue-500 underline">
+                <a
+                  href={result.data.sheetLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 underline"
+                >
                   Open in Google Sheets
                 </a>
               </div>
             )}
           </div>
         );
-      
+
       // Add cases for other node types as needed
     }
 
@@ -136,29 +283,53 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
       );
     }
 
-    const executionSuccess = nodes.every(nodeId => results[nodeId]?.success);
+    const executionSuccess = nodes.every((nodeId) => results[nodeId]?.success);
 
     return (
       <div className="space-y-4">
-        {nodes.map(nodeId => {
+        {nodes.map((nodeId) => {
           const result = results[nodeId];
           const node = result.node;
           const isExpanded = expandedNodes[nodeId] !== false; // Default to expanded
-          
+
           return (
             <div key={nodeId} className="bg-white rounded-lg shadow">
               <div className="p-4 flex items-start justify-between">
                 <div className="flex items-center">
-                  {node.type === 'gmail' && (
+                  {/* Service-specific icons */}
+                  {node.type === "gmail" && (
                     <div className="mr-3 text-red-500">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4ZM20 18H4V8L12 13L20 8V18ZM12 11L4 6H20L12 11Z" />
-                      </svg>
+                      <img
+                        src="/icons/gmail.svg"
+                        alt="Gmail"
+                        width="24"
+                        height="24"
+                      />
+                    </div>
+                  )}
+                  {node.type === "gdrive" && (
+                    <div className="mr-3 text-blue-600">
+                      <img
+                        src="/icons/gdrive.svg"
+                        alt="Google Drive"
+                        width="24"
+                        height="24"
+                      />
+                    </div>
+                  )}
+                  {node.type === "sheets" && (
+                    <div className="mr-3 text-green-600">
+                      <img
+                        src="/icons/gsheets.svg"
+                        alt="Google Sheets"
+                        width="24"
+                        height="24"
+                      />
                     </div>
                   )}
                   <div>
                     <h3 className="text-lg font-medium">
-                      {node.type === 'gmail' && node.data.config.action === 'READ_UNREAD' ? 'Gmail Reader' : node.id}
+                      {getNodeDisplayName(node)}
                     </h3>
                   </div>
                 </div>
@@ -175,7 +346,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
               {isExpanded && (
                 <div className="border-t">
                   <div className="p-4">
-                    <button 
+                    <button
                       className="text-gray-500 flex items-center text-sm w-full justify-center border rounded-md py-2 mb-4"
                       onClick={() => toggleDetailsExpansion(nodeId)}
                     >
@@ -221,7 +392,11 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
         })}
 
         <div className="mt-8 flex justify-center">
-          <div className={`flex items-center ${executionSuccess ? 'text-green-600' : 'text-red-600'}`}>
+          <div
+            className={`flex items-center ${
+              executionSuccess ? "text-green-600" : "text-red-600"
+            }`}
+          >
             {executionSuccess ? (
               <>
                 <CheckCircle className="h-6 w-6 mr-2" />
@@ -240,15 +415,15 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
   };
 
   return (
-    <div 
+    <div
       className={`fixed right-0 top-20 h-[calc(100%-6rem)] w-1/3 bg-gray-50 shadow-lg transform transition-transform duration-300 ease-in-out z-40 ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
+        isOpen ? "translate-x-0" : "translate-x-full"
       }`}
     >
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b bg-white p-4">
           <div className="flex items-center">
-            <button 
+            <button
               className="mr-4 h-8 w-8 flex items-center justify-center text-gray-400 hover:text-gray-600"
               onClick={onClose}
             >

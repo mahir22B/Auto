@@ -228,75 +228,96 @@ export class GmailExecutor extends AbstractExecutor {
     }
   }
 
-  private async sendEmail(
-    context: ExecutorContext,
-    config: GmailConfig
-  ): Promise<ExecutionResult> {
-    try {
-      if (!config.to || !config.subject || !config.body) {
-        throw new Error("Missing required fields for sending email");
-      }
+ // Let's modify the relevant parts of the sendEmail method in GmailExecutor class
 
-      const email = [
-        `To: ${config.to}`,
-        `Subject: ${config.subject}`,
-        "Content-Type: text/plain; charset=utf-8",
-        "",
-        config.body,
-      ].join("\r\n");
+private async sendEmail(
+  context: ExecutorContext,
+  config: GmailConfig
+): Promise<ExecutionResult> {
+  try {
+    // Check for inputs from connected nodes first, then fall back to config values
+    const to = this.getInputValue(context, 'input_to') || config.to;
+    const subject = this.getInputValue(context, 'input_subject') || config.subject;
+    const body = this.getInputValue(context, 'input_body') || config.body;
 
-      const encodedEmail = Buffer.from(email)
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
+    if (!to || !subject || !body) {
+      throw new Error("Missing required fields for sending email");
+    }
 
-      const response = await this.makeGmailRequest(
-        "messages/send",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            raw: encodedEmail,
-          }),
-        },
-        context
-      );
+    const email = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      body,
+    ].join("\r\n");
 
-      return {
-        success: true,
-        data: {
-          status: "Email sent successfully",
-          messageId: response.id,
-          threadId: response.threadId,
-          details: {
-            to: config.to,
-            subject: config.subject,
-            timestamp: new Date().toISOString(),
-            displayText: `Email sent → To: ${config.to}, Subject: ${config.subject}`,
-          },
+    const encodedEmail = Buffer.from(email)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+
+    const response = await this.makeGmailRequest(
+      "messages/send",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          raw: encodedEmail,
+        }),
+      },
+      context
+    );
+
+    return {
+      success: true,
+      data: {
+        output_status: true,
+        status: "Email sent successfully",
+        messageId: response.id,
+        threadId: response.threadId,
+        details: {
+          to,
+          subject,
+          timestamp: new Date().toISOString(),
+          displayText: `Email sent → To: ${to}, Subject: ${subject}`,
         },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: {
-          message:
-            error instanceof Error ? error.message : "Failed to send email",
-          details: error,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        message:
+          error instanceof Error ? error.message : "Failed to send email",
+        details: error,
+      },
+      data: {
+        output_status: false,
+        status: "Email sending failed",
+        attempted: {
+          to: this.getInputValue(context, 'input_to') || config.to,
+          subject: this.getInputValue(context, 'input_subject') || config.subject,
+          timestamp: new Date().toISOString(),
+          displayText: `Failed to send email → To: ${config.to}, Subject: ${config.subject}`,
         },
-        data: {
-          status: "Email sending failed",
-          attempted: {
-            to: config.to,
-            subject: config.subject,
-            timestamp: new Date().toISOString(),
-            displayText: `Failed to send email → To: ${config.to}, Subject: ${config.subject}`,
-          },
-        },
-      };
+      },
+    };
+  }
+}
+
+// Helper method to extract input values from connected nodes
+private getInputValue(context: ExecutorContext, inputId: string): string | undefined {
+  if (!context.inputs) return undefined;
+  
+  for (const input of context.inputs) {
+    if (input.targetHandle === inputId && input.data) {
+      return input.data;
     }
   }
-
+  
+  return undefined;
+}
   async execute(
     context: ExecutorContext,
     config: GmailConfig
