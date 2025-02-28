@@ -116,8 +116,6 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
 
       case "gdrive":
         // Add Google Drive specific renderer
-        // Replace only the gdrive WRITE_FILE case in renderNodeResults
-        // Replace only the gdrive WRITE_FILE case in renderNodeResults
         if (node.data.config.action === "WRITE_FILE") {
           return (
             <div className="p-2">
@@ -125,20 +123,46 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-green-600">Success</span>
-                    <span className="text-gray-400">|</span>
-                    <span className="text-gray-600">Drive URL:</span>
                   </div>
-
                   {result.data?.output_fileUrl ? (
-                    <a
-                      href={result.data.output_fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-blue-500 hover:underline"
-                    >
-                      <span>Open in Google Drive</span>
-                      <ExternalLink className="ml-1 h-4 w-4" />
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(result.data.output_fileUrl)
+                            .then(() => {
+                              // Optionally show a brief "Copied!" message
+                              const button = document.getElementById(`copy-btn-${nodeId}`);
+                              if (button) {
+                                const originalText = button.textContent;
+                                button.textContent = "Copied!";
+                                setTimeout(() => {
+                                  button.textContent = originalText;
+                                }, 2000);
+                              }
+                            })
+                            .catch(err => {
+                              console.error('Could not copy text: ', err);
+                            });
+                        }}
+                        id={`copy-btn-${nodeId}`}
+                        className="flex items-center gap-1 text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-copy">
+                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                        </svg>
+                        Copy URL
+                      </button>
+                      <a
+                        href={result.data.output_fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-blue-500 hover:text-blue-700"
+                      >
+                        <span>Open in Google Drive</span>
+                        <ExternalLink className="ml-1 h-4 w-4" />
+                      </a>
+                    </div>
                   ) : (
                     <div className="text-yellow-600">
                       Unable to generate file URL
@@ -151,7 +175,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                 </div>
               )}
             </div>
-          );
+          )
         } else if (node.data.config.action === "READ_FILE") {
           return (
             <div className="p-2">

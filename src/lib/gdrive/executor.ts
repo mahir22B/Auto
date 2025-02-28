@@ -148,18 +148,18 @@ export class GDriveExecutor extends AbstractExecutor {
       if (!content) {
         throw new Error("File content is required");
       }
-  
+    
       // Create the file metadata
       const metadata = {
         name: fileName,
         parents: [config.folderId]
       };
-  
+    
       // Prepare the multipart upload
       const boundary = '-------314159265358979323846';
       const delimiter = "\r\n--" + boundary + "\r\n";
       const closeDelimiter = "\r\n--" + boundary + "--";
-  
+    
       // Create the multipart request body
       const body = delimiter +
         'Content-Type: application/json\r\n\r\n' +
@@ -170,7 +170,7 @@ export class GDriveExecutor extends AbstractExecutor {
         closeDelimiter;
       
       // Upload the file
-      const response = await this.makeAuthorizedRequest(
+      const uploadResponse = await this.makeAuthorizedRequest(
         "gdrive",
         'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',
         {
@@ -182,30 +182,65 @@ export class GDriveExecutor extends AbstractExecutor {
         },
         context
       );
-  
-      const responseData = await response.json();
-      console.log("Google Drive API response:", responseData);
-  
+    
+      const uploadData = await uploadResponse.json();
+      console.log("Google Drive API upload response:", uploadData);
+    
       // Get the file ID from the response
-      const fileId = responseData.id;
+      const fileId = uploadData.id;
       
       if (!fileId) {
         throw new Error("File was created but no file ID was returned");
       }
       
-      // Always construct a direct file view URL using the format:
-      // https://drive.google.com/file/d/{fileId}/view
-      const directFileUrl = `https://drive.google.com/file/d/${fileId}/view`;
-  
+      // After creating the file, we need to explicitly get the webViewLink
+      // Using files.get method with the webViewLink field specified
+      const fileMetadataResponse = await this.makeAuthorizedRequest(
+        "gdrive",
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,webViewLink`,
+        { method: "GET" },
+        context
+      );
+      
+      const fileMetadata = await fileMetadataResponse.json();
+      console.log("File metadata response:", fileMetadata);
+      
+      // Get the webViewLink from the response
+      const webViewLink = fileMetadata.webViewLink;
+      
+      // If for some reason the webViewLink is still not available, create a fallback link
+      const fileUrl = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+      
+      // Optional: Set the permissions to make the file publicly accessible
+      /*
+      await this.makeAuthorizedRequest(
+        "gdrive",
+        `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+        {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            role: 'reader',
+            type: 'anyone',
+            allowFileDiscovery: false
+          })
+        },
+        context
+      );
+      */
+    
       return {
         success: true,
         data: {
-          output_fileUrl: directFileUrl,
+          output_fileUrl: fileUrl,
           fileId: fileId,
-          fileName: responseData.name || fileName,
+          fileName: uploadData.name || fileName,
           displayText: `File created: ${fileName}`,
-          // Also include the containing folder URL if available
-          folderUrl: config.fileDetails?.url
+          message: `File "${fileName}" created successfully`,
+          // Include the webViewLink as a separate property for clarity
+          webViewLink: webViewLink
         }
       };
     } catch (error) {
@@ -215,11 +250,19 @@ export class GDriveExecutor extends AbstractExecutor {
         error: {
           message: error instanceof Error ? error.message : "Failed to write file",
           details: error
+        },
+        // Even in error cases, provide a data object with undefined fields
+        // This ensures consistent structure for handling in the UI
+        data: {
+          output_fileUrl: undefined,
+          fileId: undefined,
+          fileName: undefined,
+          displayText: "Failed to create file",
+          message: error instanceof Error ? error.message : "Failed to write file"
         }
       };
     }
-  }  
-  // Helper method to extract input values from connected nodes
+  }  // Helper method to extract input values from connected nodes
   private getInputValue(context: ExecutorContext, inputId: string): string | undefined {
     if (!context.inputs) return undefined;
     
