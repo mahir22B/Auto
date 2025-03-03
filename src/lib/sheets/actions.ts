@@ -3,25 +3,26 @@ import { ActionConfig } from '../services';
 import { SheetReader } from './executor';
 
 // Handler for sheet selection
-async function handleSheetSelection(fileDetails: any, currentConfig: any, context: any) {
-  try {
-    // Initialize sheet reader and get metadata
-    const sheetReader = new SheetReader();
-    const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
+// async function handleSheetSelection(fileDetails: any, currentConfig: any, context: any) {
+//   try {
+//     // Initialize sheet reader and get metadata
+//     const sheetReader = new SheetReader();
+//     const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
+//     console.log("META", metadata);
 
-    // Return updated configuration
-    return {
-      ...currentConfig,
-      spreadsheetId: fileDetails.id,
-      fileDetails,
-      availableColumns: metadata.columns,
-      selectedColumns: []
-    };
-  } catch (error) {
-    console.error('Error handling sheet selection:', error);
-    throw error;
-  }
-}
+//     // Return updated configuration
+//     return {
+//       ...currentConfig,
+//       spreadsheetId: fileDetails.id,
+//       fileDetails,
+//       availableColumns: metadata.columns,
+//       selectedColumns: []
+//     };
+//   } catch (error) {
+//     console.error('Error handling sheet selection:', error);
+//     throw error;
+//   }
+// }
 
 export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
   READ_SHEET: {

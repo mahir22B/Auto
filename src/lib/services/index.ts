@@ -1,11 +1,11 @@
-import { GMAIL_ACTIONS } from '../gmail/actions';
-import { GDRIVE_ACTIONS } from '../gdrive/actions';
-import { SHEETS_ACTIONS } from '../sheets/actions';
+import { GMAIL_ACTIONS } from "../gmail/actions";
+import { GDRIVE_ACTIONS } from "../gdrive/actions";
+import { SHEETS_ACTIONS } from "../sheets/actions";
 
 export interface Port {
   id: string;
   label: string;
-  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  type: "string" | "number" | "boolean" | "array" | "object";
   isActive?: boolean;
 }
 
@@ -54,38 +54,40 @@ export interface ServiceConfig {
 
 export const SERVICES: Record<string, ServiceConfig> = {
   gmail: {
-    id: 'gmail',
-    name: 'Gmail',
-    description: 'Email operations',
-    icon: '/icons/gmail.svg',
+    id: "gmail",
+    name: "Gmail",
+    description: "Email operations",
+    icon: "/icons/gmail.svg",
     actions: GMAIL_ACTIONS,
     authScopes: [
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/gmail.modify'
-    ]
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/gmail.modify",
+    ],
   },
   gdrive: {
-    id: 'gdrive',
-    name: 'Google Drive',
-    description: 'Manage files and folders',
-    icon: '/icons/gdrive.svg',
+    id: "gdrive",
+    name: "Google Drive",
+    description: "Manage files and folders",
+    icon: "/icons/gdrive.svg",
     actions: GDRIVE_ACTIONS,
     authScopes: [
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/drive.metadata'
-    ]
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/drive.metadata",
+    ],
   },
   sheets: {
-    id: 'sheets',
-    name: 'Google Sheets',
-    description: 'Spreadsheet operations',
-    icon: '/icons/gsheets.svg',
+    id: "sheets",
+    name: "Google Sheets",
+    description: "Spreadsheet operations",
+    icon: "/icons/gsheets.svg",
     actions: SHEETS_ACTIONS,
     authScopes: [
-      'https://www.googleapis.com/auth/spreadsheets',     // For write/update access
-      'https://www.googleapis.com/auth/spreadsheets.readonly'  // For read access
-    ]
-  }
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/spreadsheets.readonly",
+      'https://www.googleapis.com/auth/drive.readonly', // Add this
+      'https://www.googleapis.com/auth/drive.file' 
+    ],
+  },
 };
