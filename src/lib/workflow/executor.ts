@@ -40,7 +40,7 @@ export class WorkflowExecutor {
   ) {
     const nodeOrder = this.getNodeOrder(nodes, edges);
     const nodeResults: Record<string, any> = {};
-    const nodeOutputs: Record<string, any> = {};
+    const nodeOutputs: Record<string, Record<string, any>> = {};
 
     console.log("Executing workflow with node order:", nodeOrder);
 
@@ -52,43 +52,48 @@ export class WorkflowExecutor {
       }
 
       try {
-        // Simply check if we have an action selected
+        // Check if we have an action selected
         if (!node.data.config?.action) {
           throw new Error("Please select an action for the node");
         }
 
-        // Get inputs from parent nodes
+        // Get inputs from parent nodes through connections
         const inputEdges = edges.filter((edge) => edge.target === nodeId);
         const inputs: any[] = [];
+        const inputData: Record<string, any> = {};
 
         // Process input edges to get data from source nodes
         for (const edge of inputEdges) {
           const sourceNodeId = edge.source;
+          const sourceHandle = edge.sourceHandle;
+          const targetHandle = edge.targetHandle;
+
+          if (!sourceNodeId || !sourceHandle || !targetHandle) {
+            continue; // Skip edges without proper handles
+          }
+
           const sourceNode = nodes.find((n) => n.id === sourceNodeId);
+          if (!sourceNode || !nodeOutputs[sourceNodeId]) {
+            continue; // Skip if source node or its outputs don't exist
+          }
 
-          if (sourceNode && nodeOutputs[sourceNodeId]) {
-            // If the edge has specific source/target handles, try to get that specific data
-            if (edge.sourceHandle && edge.targetHandle) {
-              // Extract source handle ID (could have output_ prefix)
-              const sourceField = edge.sourceHandle;
-
-              // Get specific field data if available
-              if (nodeOutputs[sourceNodeId][sourceField] !== undefined) {
-                inputs.push({
-                  sourceNode: sourceNode.id,
-                  targetHandle: edge.targetHandle,
-                  data: nodeOutputs[sourceNodeId][sourceField],
-                });
-              }
-            } else {
-              // Push the entire output
-              inputs.push({
-                sourceNode: sourceNode.id,
-                data: nodeOutputs[sourceNodeId],
-              });
-            }
+          // Get data from the specific source handle
+          const sourceData = nodeOutputs[sourceNodeId][sourceHandle];
+          
+          if (sourceData !== undefined) {
+            // Store for executor context
+            inputs.push({
+              sourceNode: sourceNodeId,
+              sourceHandle: sourceHandle,
+              targetHandle: targetHandle,
+              data: sourceData
+            });
+            
+            // Store for direct access in the node
+            inputData[targetHandle] = sourceData;
           }
         }
+
         // Get the appropriate executor
         const executor = ExecutorRegistry.getExecutor(node.type);
 
@@ -98,13 +103,17 @@ export class WorkflowExecutor {
           throw new Error(`Please authenticate with ${node.type}`);
         }
 
+        // Create the execution context with input data
         const context: ExecutorContext = {
           tokens,
           inputs,
+          inputData // Add direct access to input data
         };
 
         // Execute the node
         console.log(`Executing node ${nodeId} with config:`, node.data.config);
+        console.log(`Node ${nodeId} inputs:`, inputs);
+
         const startTime = Date.now();
         const result = await executor.execute(context, node.data.config);
         const executionTime = (Date.now() - startTime) / 1000;
@@ -116,7 +125,14 @@ export class WorkflowExecutor {
           executionTime,
           inputs,
         };
-        nodeOutputs[nodeId] = result.data;
+
+        // Store individual outputs with their handle IDs
+        nodeOutputs[nodeId] = {};
+        if (result.success && result.data) {
+          for (const [key, value] of Object.entries(result.data)) {
+            nodeOutputs[nodeId][key] = value;
+          }
+        }
 
         if (!result.success) {
           console.error(`Node ${nodeId} failed:`, result.error);

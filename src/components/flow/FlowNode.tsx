@@ -42,7 +42,7 @@ interface FlowNodeProps {
 const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const [config, setConfig] = React.useState(data.config);
   const [showAuthPrompt, setShowAuthPrompt] = React.useState(false);
-  const [showExecutionData, setShowExecutionData] = React.useState(false);
+  // const [showExecutionData, setShowExecutionData] = React.useState(false);
 
   const serviceConfig = SERVICES[data.service];
   const { name, icon, actions } = serviceConfig;
@@ -132,76 +132,94 @@ React.useEffect(() => {
   }
 }, [config.selectedColumns, config.emailInformation, config.action]);
 
-  const renderExecutionState = () => {
-    if (!data.executionState) return null;
+  // const renderExecutionState = () => {
+  //   if (!data.executionState) return null;
 
-    return (
-      <div
-        className={cn(
-          "mt-4 p-3 rounded-md text-sm",
-          data.executionState.success
-            ? "bg-green-50 border border-green-200"
-            : "bg-red-50 border border-red-200"
-        )}
-      >
-        <div className="flex items-center gap-2">
-          {data.executionState.success ? (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          ) : (
-            <XCircle className="h-4 w-4 text-red-600" />
-          )}
-          <span
-            className={
-              data.executionState.success ? "text-green-700" : "text-red-700"
-            }
-          >
-            {data.executionState.success
-              ? "Execution successful"
-              : "Execution failed"}
-          </span>
-        </div>
+  //   return (
+  //     <div
+  //       className={cn(
+  //         "mt-4 p-3 rounded-md text-sm",
+  //         data.executionState.success
+  //           ? "bg-green-50 border border-green-200"
+  //           : "bg-red-50 border border-red-200"
+  //       )}
+  //     >
+  //       <div className="flex items-center gap-2">
+  //         {data.executionState.success ? (
+  //           <CheckCircle2 className="h-4 w-4 text-green-600" />
+  //         ) : (
+  //           <XCircle className="h-4 w-4 text-red-600" />
+  //         )}
+  //         <span
+  //           className={
+  //             data.executionState.success ? "text-green-700" : "text-red-700"
+  //           }
+  //         >
+  //           {data.executionState.success
+  //             ? "Execution successful"
+  //             : "Execution failed"}
+  //         </span>
+  //       </div>
 
-        {data.executionState.error && (
-          <div className="mt-2 text-red-600">
-            Error: {data.executionState.error}
-          </div>
-        )}
+  //       {data.executionState.error && (
+  //         <div className="mt-2 text-red-600">
+  //           Error: {data.executionState.error}
+  //         </div>
+  //       )}
 
-        {data.executionState.success && data.executionState.data && (
-          <div className="mt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs"
-              onClick={() => setShowExecutionData(!showExecutionData)}
-            >
-              {showExecutionData ? "Hide" : "Show"} Results
-            </Button>
-            {showExecutionData && (
-              <pre className="mt-2 p-2 bg-black/5 rounded text-xs overflow-auto max-h-40">
-                {JSON.stringify(data.executionState.data, null, 2)}
-              </pre>
-            )}
-          </div>
-        )}
-      </div>
-    );
+  //       {data.executionState.success && data.executionState.data && (
+  //         <div className="mt-2">
+  //           <Button
+  //             variant="ghost"
+  //             size="sm"
+  //             className="text-xs"
+  //             onClick={() => setShowExecutionData(!showExecutionData)}
+  //           >
+  //             {showExecutionData ? "Hide" : "Show"} Results
+  //           </Button>
+  //           {showExecutionData && (
+  //             <pre className="mt-2 p-2 bg-black/5 rounded text-xs overflow-auto max-h-40">
+  //               {JSON.stringify(data.executionState.data, null, 2)}
+  //             </pre>
+  //           )}
+  //         </div>
+  //       )}
+  //     </div>
+  //   );
+  // };
+
+// This is a snippet that would replace the renderPorts function in src/components/flow/FlowNode.tsx
+
+const renderPorts = () => {
+  if (!config.action || !actions[config.action]?.ports) return null;
+
+  const { inputs = [], outputs = [] } =
+    config.ports || actions[config.action].ports;
+
+  // Function to get handle status for visual representation
+  const getHandleStatus = (port: any, isInput: boolean) => {
+    // Check if there's an execution state for this node
+    if (data.executionState?.success) {
+      // For outputs, check if there's actual data available
+      if (!isInput && data.executionState.data && data.executionState.data[port.id] !== undefined) {
+        return 'active-data'; // This output has actual data flowing through it
+      }
+    }
+    
+    return port.isActive ? 'active' : 'inactive';
   };
 
-  const renderPorts = () => {
-    if (!config.action || !actions[config.action]?.ports) return null;
-
-    const { inputs = [], outputs = [] } =
-      config.ports || actions[config.action].ports;
-
-    return (
-      <>
-        {/* Input Ports */}
-        <div className="absolute -top-3 left-0 right-0 flex justify-evenly items-center px-4">
-          {inputs.map((port, index) => (
+  return (
+    <>
+      {/* Input Ports */}
+      <div className="absolute -top-3 left-0 right-0 flex justify-evenly items-center px-4">
+        {inputs.map((port, index) => {
+          const handleStatus = getHandleStatus(port, true);
+          
+          return (
             <div
               key={`${port.id}-${index}`}
-              className={`relative ${port.isActive ? 'group' : 'pointer-events-none'}`}
+              className={`relative ${handleStatus !== 'inactive' ? 'group' : 'pointer-events-none'}`}
               style={{
                 width: "24px",
                 height: "24px",
@@ -214,27 +232,33 @@ React.useEffect(() => {
                 type="target"
                 position={Position.Top}
                 id={port.id}
-                isConnectable={isConnectable && port.isActive}
+                isConnectable={isConnectable && handleStatus !== 'inactive'}
                 className={cn(
-                  "w-3 h-3 rounded-full border",
-                  port.isActive
-                    ? "!bg-white !border-gray-400 border-2"
-                    : "!bg-transparent !border-transparent border opacity-0"
+                  "w-3 h-3 rounded-full border-2 transition-colors",
+                  handleStatus === 'inactive' ? 
+                    "!bg-transparent !border-transparent opacity-0" :
+                  handleStatus === 'active-data' ?
+                    "!bg-blue-500 !border-blue-600 !shadow-sm !shadow-blue-300" :
+                    "!bg-white !border-gray-400"
                 )}
               />
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
                 {port.label}
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Output Ports */}
-        <div className="absolute -bottom-3 left-0 right-0 flex justify-evenly items-center px-4">
-          {outputs.map((port, index) => (
+      {/* Output Ports */}
+      <div className="absolute -bottom-3 left-0 right-0 flex justify-evenly items-center px-4">
+        {outputs.map((port, index) => {
+          const handleStatus = getHandleStatus(port, false);
+          
+          return (
             <div
               key={`${port.id}-${index}`}
-              className={`relative ${port.isActive ? 'group' : 'pointer-events-none'}`}
+              className={`relative ${handleStatus !== 'inactive' ? 'group' : 'pointer-events-none'}`}
               style={{
                 width: "24px",
                 height: "24px",
@@ -247,23 +271,26 @@ React.useEffect(() => {
                 type="source"
                 position={Position.Bottom}
                 id={port.id}
-                isConnectable={isConnectable && port.isActive}
+                isConnectable={isConnectable && handleStatus !== 'inactive'}
                 className={cn(
-                  "w-3 h-3 rounded-full border transition-all duration-200",
-                  port.isActive
-                    ? "!bg-white !border-gray-400 border-2"
-                    : "!bg-transparent !border-transparent border opacity-0"
+                  "w-3 h-3 rounded-full border-2 transition-colors",
+                  handleStatus === 'inactive' ? 
+                    "!bg-transparent !border-transparent opacity-0" :
+                  handleStatus === 'active-data' ?
+                    "!bg-green-500 !border-green-600 !shadow-sm !shadow-green-300" :
+                    "!bg-white !border-gray-400"
                 )}
               />
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity">
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
                 {port.label}
               </div>
             </div>
-          ))}
-        </div>
-      </>
-    );
-  };
+          );
+        })}
+      </div>
+    </>
+  );
+};
   const renderHeader = (actionName?: string) => (
     <div className="relative">
       <div className="flex items-center gap-2 mb-4">
@@ -504,7 +531,7 @@ React.useEffect(() => {
           })}
         </div>
 
-        {renderExecutionState()}
+        {/* {renderExecutionState()} */}
       </Card>
     );
   }

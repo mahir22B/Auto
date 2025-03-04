@@ -37,6 +37,38 @@ export abstract class AbstractExecutor implements BaseExecutor {
     }
   }
 
+  /**
+   * Get an input value from the execution context or fall back to config
+   * @param context Execution context with inputs
+   * @param inputHandleId The ID of the input handle to check
+   * @param config The node configuration for fallback
+   * @param configField The field in the config to use as fallback
+   * @returns The input value or config fallback
+   */
+  protected getInputValueOrConfig(
+    context: ExecutorContext, 
+    inputHandleId: string, 
+    config: any, 
+    configField: string
+  ): any {
+    // First check direct inputData access
+    if (context.inputData && context.inputData[inputHandleId] !== undefined) {
+      return context.inputData[inputHandleId];
+    }
+
+    // Fallback to searching inputs array
+    if (context.inputs) {
+      for (const input of context.inputs) {
+        if (input.targetHandle === inputHandleId && input.data !== undefined) {
+          return input.data;
+        }
+      }
+    }
+
+    // If no input was found, return the config value
+    return config[configField];
+  }
+
   // This is the method from the BaseExecutor interface
   abstract execute(context: ExecutorContext, config: any): Promise<ExecutionResult>;
 }

@@ -1,3 +1,5 @@
+// src/lib/gdrive/executor.ts
+
 import { ExecutorContext, ExecutionResult } from "../executors/types";
 import { AbstractExecutor } from "../executors/AbstractExecutor";
 import { GDriveConfig } from "./types";
@@ -50,8 +52,7 @@ export class GDriveExecutor extends AbstractExecutor {
         const contentResponse = await this.makeAuthorizedRequest(
           "gdrive",
           `https://www.googleapis.com/drive/v3/files/${config.fileId}?alt=media`,
-          { method: "GET" },
-          context
+          { method: "GET" }
         );
         fileContent = await contentResponse.text();
       } else {
@@ -112,6 +113,8 @@ export class GDriveExecutor extends AbstractExecutor {
         success: true,
         data: {
           output_files: files,
+          output_folderName: folderMetadata.name,
+          output_fileCount: files.length,
           folderName: folderMetadata.name,
           fileCount: files.length,
           displayText: `Read folder: ${folderMetadata.name} (${files.length} files)`
@@ -134,8 +137,8 @@ export class GDriveExecutor extends AbstractExecutor {
   ): Promise<ExecutionResult> {
     try {
       // Check for inputs from connected nodes first, then fall back to config values
-      const fileName = this.getInputValue(context, 'input_fileName') || config.fileName;
-      const content = this.getInputValue(context, 'input_content') || config.content;
+      const fileName = this.getInputValueOrConfig(context, 'input_fileName', config, 'fileName');
+      const content = this.getInputValueOrConfig(context, 'input_content', config, 'content');
       
       if (!config.folderId) {
         throw new Error("Folder ID is required");
@@ -179,8 +182,7 @@ export class GDriveExecutor extends AbstractExecutor {
             'Content-Type': `multipart/related; boundary=${boundary}`
           },
           body: body
-        },
-        context
+        }
       );
     
       const uploadData = await uploadResponse.json();
@@ -198,8 +200,7 @@ export class GDriveExecutor extends AbstractExecutor {
       const fileMetadataResponse = await this.makeAuthorizedRequest(
         "gdrive",
         `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,webViewLink`,
-        { method: "GET" },
-        context
+        { method: "GET" }
       );
       
       const fileMetadata = await fileMetadataResponse.json();
@@ -211,35 +212,16 @@ export class GDriveExecutor extends AbstractExecutor {
       // If for some reason the webViewLink is still not available, create a fallback link
       const fileUrl = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
       
-      // Optional: Set the permissions to make the file publicly accessible
-      /*
-      await this.makeAuthorizedRequest(
-        "gdrive",
-        `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
-        {
-          method: "POST",
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            role: 'reader',
-            type: 'anyone',
-            allowFileDiscovery: false
-          })
-        },
-        context
-      );
-      */
-    
       return {
         success: true,
         data: {
           output_fileUrl: fileUrl,
+          output_fileId: fileId,
+          output_fileName: uploadData.name || fileName,
           fileId: fileId,
           fileName: uploadData.name || fileName,
           displayText: `File created: ${fileName}`,
           message: `File "${fileName}" created successfully`,
-          // Include the webViewLink as a separate property for clarity
           webViewLink: webViewLink
         }
       };
@@ -251,10 +233,10 @@ export class GDriveExecutor extends AbstractExecutor {
           message: error instanceof Error ? error.message : "Failed to write file",
           details: error
         },
-        // Even in error cases, provide a data object with undefined fields
-        // This ensures consistent structure for handling in the UI
         data: {
           output_fileUrl: undefined,
+          output_fileId: undefined,
+          output_fileName: undefined,
           fileId: undefined,
           fileName: undefined,
           displayText: "Failed to create file",
@@ -262,17 +244,6 @@ export class GDriveExecutor extends AbstractExecutor {
         }
       };
     }
-  }  // Helper method to extract input values from connected nodes
-  private getInputValue(context: ExecutorContext, inputId: string): string | undefined {
-    if (!context.inputs) return undefined;
-    
-    for (const input of context.inputs) {
-      if (input.targetHandle === inputId && input.data) {
-        return input.data;
-      }
-    }
-    
-    return undefined;
   }
 
   async execute(
