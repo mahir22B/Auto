@@ -112,18 +112,18 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     if (data.removePortConnections && config.ports && newConfig.ports) {
       // For Gmail email reader, check if emailInformation was changed
       if (data.service === 'gmail' && config.action === 'READ_UNREAD' && 
-          updates.emailInformation && config.emailInformation !== updates.emailInformation) {
+          updates.emailInformation) {
         
         // Find ports that are removed (were active but are now inactive)
-        const oldActivePorts = config.ports.outputs.filter(port => port.isActive !== false).map(p => p.id);
-        const newActivePorts = newConfig.ports.outputs.filter(port => port.isActive !== false).map(p => p.id);
+        const oldEmailInfo = config.emailInformation || [];
+        const newEmailInfo = updates.emailInformation || [];
         
-        // Find ports that were removed
-        const removedPorts = oldActivePorts.filter(id => !newActivePorts.includes(id));
+        // Find email information types that were removed
+        const removedInfo = oldEmailInfo.filter(info => !newEmailInfo.includes(info));
         
         // Clean up connections for removed ports
-        removedPorts.forEach(portId => {
-          data.removePortConnections!(portId);
+        removedInfo.forEach(info => {
+          data.removePortConnections!(`output_${info}`);
         });
       }
       
@@ -132,7 +132,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           (config.action === 'READ_SHEET' || config.action === 'WRITE_SHEET' || config.action === 'UPDATE_SHEET') && 
           updates.selectedColumns) {
         
-        // Find ports that are now inactive
+        // Find columns that were removed
         const oldSelectedColumns = config.selectedColumns || [];
         const newSelectedColumns = updates.selectedColumns || [];
         

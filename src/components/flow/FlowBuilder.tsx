@@ -72,10 +72,23 @@ const FlowBuilder = ({
 
   // Function to remove connections for a specific port
   const removePortConnections = useCallback((nodeId: string, portId: string) => {
-    setEdges((eds) => eds.filter((edge) => 
-      !(edge.source === nodeId && edge.sourceHandle === portId) && 
-      !(edge.target === nodeId && edge.targetHandle === portId)
-    ));
+    console.log(`Removing connections for node ${nodeId}, port ${portId}`);
+    
+    setEdges((eds) => {
+      // Filter out edges connected to this port
+      const filteredEdges = eds.filter((edge) => 
+        !(edge.source === nodeId && edge.sourceHandle === portId) && 
+        !(edge.target === nodeId && edge.targetHandle === portId)
+      );
+      
+      // Log details about what's being removed
+      const removedCount = eds.length - filteredEdges.length;
+      if (removedCount > 0) {
+        console.log(`Removed ${removedCount} connections for node ${nodeId}, port ${portId}`);
+      }
+      
+      return filteredEdges;
+    });
   }, [setEdges]);
 
   // Update nodes when auth state or execution results change
