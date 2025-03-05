@@ -53,15 +53,15 @@ export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
     ports: {
       inputs: [],
       outputs: [
-        { id: 'output_email_bodies', label: 'Email Bodies', type: 'array', isActive: false },
-        { id: 'output_attached_file_names', label: 'Attachments', type: 'array', isActive: false },
-        { id: 'output_message_ids', label: 'Message IDs', type: 'array', isActive: false },
-        { id: 'output_thread_ids', label: 'Thread IDs', type: 'array', isActive: false },
-        { id: 'output_sender_addresses', label: 'Sender Addresses', type: 'array', isActive: false },
-        { id: 'output_recipient_addresses', label: 'Recipient Addresses', type: 'array', isActive: false },
-        { id: 'output_subjects', label: 'Subjects', type: 'array', isActive: false },
-        { id: 'output_dates', label: 'Dates', type: 'array', isActive: false },
-        { id: 'output_sender_display_names', label: 'Sender Names', type: 'array', isActive: false }
+        { id: 'output_email_bodies', label: 'Email Bodies', type: 'array', isActive: false, isListType: false },
+        { id: 'output_attached_file_names', label: 'Attachments', type: 'array', isActive: false, isListType: false },
+        { id: 'output_message_ids', label: 'Message IDs', type: 'array', isActive: false, isListType: false },
+        { id: 'output_thread_ids', label: 'Thread IDs', type: 'array', isActive: false, isListType: false },
+        { id: 'output_sender_addresses', label: 'Sender Addresses', type: 'array', isActive: false, isListType: false },
+        { id: 'output_recipient_addresses', label: 'Recipient Addresses', type: 'array', isActive: false, isListType: false },
+        { id: 'output_subjects', label: 'Subjects', type: 'array', isActive: false, isListType: false },
+        { id: 'output_dates', label: 'Dates', type: 'array', isActive: false, isListType: false },
+        { id: 'output_sender_display_names', label: 'Sender Names', type: 'array', isActive: false, isListType: false }
       ]
     },
     getDynamicPorts: (config: any) => {
@@ -70,27 +70,41 @@ export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
         outputs: []
       };
       
+      // Check if maxResults is greater than 1 to determine if outputs should be lists
+      const maxResults = parseInt(config.maxResults || "1");
+      const isListOutput = maxResults > 1;
+      
+      // Create the output ports with appropriate isListType based on maxResults
       return {
         inputs: [],
         outputs: [
           { id: 'output_email_bodies', label: 'Email Bodies', type: 'array', 
-            isActive: config.emailInformation.includes('email_bodies') },
+            isActive: config.emailInformation.includes('email_bodies'),
+            isListType: isListOutput },
           { id: 'output_attached_file_names', label: 'Attachments', type: 'array', 
-            isActive: config.emailInformation.includes('attached_file_names') },
+            isActive: config.emailInformation.includes('attached_file_names'),
+            isListType: isListOutput },
           { id: 'output_message_ids', label: 'Message IDs', type: 'array', 
-            isActive: config.emailInformation.includes('message_ids') },
+            isActive: config.emailInformation.includes('message_ids'),
+            isListType: isListOutput },
           { id: 'output_thread_ids', label: 'Thread IDs', type: 'array', 
-            isActive: config.emailInformation.includes('thread_ids') },
+            isActive: config.emailInformation.includes('thread_ids'),
+            isListType: isListOutput },
           { id: 'output_sender_addresses', label: 'Sender Addresses', type: 'array', 
-            isActive: config.emailInformation.includes('sender_addresses') },
+            isActive: config.emailInformation.includes('sender_addresses'),
+            isListType: isListOutput },
           { id: 'output_recipient_addresses', label: 'Recipient Addresses', type: 'array', 
-            isActive: config.emailInformation.includes('recipient_addresses') },
+            isActive: config.emailInformation.includes('recipient_addresses'),
+            isListType: isListOutput },
           { id: 'output_subjects', label: 'Subjects', type: 'array', 
-            isActive: config.emailInformation.includes('subjects') },
+            isActive: config.emailInformation.includes('subjects'),
+            isListType: isListOutput },
           { id: 'output_dates', label: 'Dates', type: 'array', 
-            isActive: config.emailInformation.includes('dates') },
+            isActive: config.emailInformation.includes('dates'),
+            isListType: isListOutput },
           { id: 'output_sender_display_names', label: 'Sender Names', type: 'array', 
-            isActive: config.emailInformation.includes('sender_display_names') }
+            isActive: config.emailInformation.includes('sender_display_names'),
+            isListType: isListOutput }
         ]
       };
     }
@@ -124,12 +138,12 @@ export const GMAIL_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [
-        { id: 'input_to', label: 'To', type: 'string', isActive: true },
-        { id: 'input_subject', label: 'Subject', type: 'string', isActive: true },
-        { id: 'input_body', label: 'Body', type: 'string', isActive: true }
+        { id: 'input_to', label: 'To', type: 'string', isActive: true, isListType: false },
+        { id: 'input_subject', label: 'Subject', type: 'string', isActive: true, isListType: false },
+        { id: 'input_body', label: 'Body', type: 'string', isActive: true, isListType: false }
       ],
       outputs: [
-        { id: 'output_status', label: 'Email Status', type: 'boolean', isActive: true }
+        { id: 'output_status', label: 'Email Status', type: 'boolean', isActive: true, isListType: false }
       ]
     }
   }

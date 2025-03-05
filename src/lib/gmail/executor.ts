@@ -1,5 +1,4 @@
 // src/lib/gmail/executor.ts
-
 import { ExecutorContext, ExecutionResult } from "../executors/types";
 import { AbstractExecutor } from "../executors/AbstractExecutor";
 import { GmailConfig } from "./types";
@@ -70,6 +69,28 @@ export class GmailExecutor extends AbstractExecutor {
               label: config.label || "INBOX",
               uniqueSenders: 0,
             },
+            // Add empty outputs for all possible output handles
+            output_email_bodies: null,
+            output_attached_file_names: null,
+            output_message_ids: null,
+            output_thread_ids: null,
+            output_sender_addresses: null,
+            output_recipient_addresses: null,
+            output_subjects: null,
+            output_dates: null,
+            output_sender_display_names: null,
+            // Add type metadata
+            _output_types: {
+              output_email_bodies: 'null',
+              output_attached_file_names: 'null',
+              output_message_ids: 'null',
+              output_thread_ids: 'null',
+              output_sender_addresses: 'null',
+              output_recipient_addresses: 'null',
+              output_subjects: 'null',
+              output_dates: 'null',
+              output_sender_display_names: 'null',
+            }
           },
         };
       }
@@ -180,41 +201,129 @@ export class GmailExecutor extends AbstractExecutor {
         }, From: ${msg.sender?.name || ""} <${msg.sender?.email || "unknown"}>`,
       }));
 
-
-      const result = {
-        success: true,
-        data: {
-          messages: formattedMessages,
-          totalCount: listResponse.resultSizeEstimate || messages.length,
-          // Add individual arrays for each email information type with output_ prefix
-          output_email_bodies: messages.map((msg) => msg.body || null),
-          output_attached_file_names: messages.map(
-            (msg) => msg.attachments?.map((a) => a.filename) || []
-          ),
-          output_message_ids: messages.map((msg) => msg.id),
-          output_thread_ids: messages.map((msg) => msg.threadId),
-          output_sender_addresses: messages.map(
-            (msg) => msg.sender?.email || null
-          ),
-          output_recipient_addresses: messages.map(
-            (msg) => msg.recipients || []
-          ),
-          output_subjects: messages.map((msg) => msg.subject || null),
-          output_dates: messages.map((msg) => msg.date || null),
-          output_sender_display_names: messages.map(
-            (msg) => msg.sender?.name || null
-          ),
-          // Summary remains the same
-          summary: {
-            unreadCount: messages.length,
-            label: config.label || "INBOX",
-            uniqueSenders: new Set(
-              messages.map((msg) => msg.sender?.email).filter(Boolean)
-            ).size,
-          },
-        },
+      // Key change: Use adaptive typing based on message count
+      const isSingleEmail = messages.length === 1;
+      
+      // Generate output data with adaptive typing
+      const adaptiveResult: Record<string, any> = {
+        messages: formattedMessages,
+        totalCount: listResponse.resultSizeEstimate || messages.length,
+        // Add type metadata
+        _output_types: {},
       };
-      return result;
+
+      // Prepare the email information based on the count
+      if (config.emailInformation) {
+        if (isSingleEmail) {
+          // Single email case - return individual values
+          if (config.emailInformation.includes("email_bodies")) {
+            adaptiveResult.output_email_bodies = messages[0].body || null;
+            adaptiveResult._output_types.output_email_bodies = 'string';
+          }
+          
+          if (config.emailInformation.includes("attached_file_names")) {
+            adaptiveResult.output_attached_file_names = messages[0].attachments?.map(a => a.filename) || [];
+            adaptiveResult._output_types.output_attached_file_names = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("message_ids")) {
+            adaptiveResult.output_message_ids = messages[0].id;
+            adaptiveResult._output_types.output_message_ids = 'string';
+          }
+          
+          if (config.emailInformation.includes("thread_ids")) {
+            adaptiveResult.output_thread_ids = messages[0].threadId;
+            adaptiveResult._output_types.output_thread_ids = 'string';
+          }
+          
+          if (config.emailInformation.includes("sender_addresses")) {
+            adaptiveResult.output_sender_addresses = messages[0].sender?.email || null;
+            adaptiveResult._output_types.output_sender_addresses = 'string';
+          }
+          
+          if (config.emailInformation.includes("recipient_addresses")) {
+            adaptiveResult.output_recipient_addresses = messages[0].recipients || [];
+            adaptiveResult._output_types.output_recipient_addresses = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("subjects")) {
+            adaptiveResult.output_subjects = messages[0].subject || null;
+            adaptiveResult._output_types.output_subjects = 'string';
+          }
+          
+          if (config.emailInformation.includes("dates")) {
+            adaptiveResult.output_dates = messages[0].date || null;
+            adaptiveResult._output_types.output_dates = 'string';
+          }
+          
+          if (config.emailInformation.includes("sender_display_names")) {
+            adaptiveResult.output_sender_display_names = messages[0].sender?.name || null;
+            adaptiveResult._output_types.output_sender_display_names = 'string';
+          }
+        } else {
+          // Multiple emails case - return arrays
+          if (config.emailInformation.includes("email_bodies")) {
+            adaptiveResult.output_email_bodies = messages.map(msg => msg.body || null);
+            adaptiveResult._output_types.output_email_bodies = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("attached_file_names")) {
+            adaptiveResult.output_attached_file_names = messages.map(
+              msg => msg.attachments?.map(a => a.filename) || []
+            );
+            adaptiveResult._output_types.output_attached_file_names = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("message_ids")) {
+            adaptiveResult.output_message_ids = messages.map(msg => msg.id);
+            adaptiveResult._output_types.output_message_ids = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("thread_ids")) {
+            adaptiveResult.output_thread_ids = messages.map(msg => msg.threadId);
+            adaptiveResult._output_types.output_thread_ids = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("sender_addresses")) {
+            adaptiveResult.output_sender_addresses = messages.map(msg => msg.sender?.email || null);
+            adaptiveResult._output_types.output_sender_addresses = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("recipient_addresses")) {
+            adaptiveResult.output_recipient_addresses = messages.map(msg => msg.recipients || []);
+            adaptiveResult._output_types.output_recipient_addresses = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("subjects")) {
+            adaptiveResult.output_subjects = messages.map(msg => msg.subject || null);
+            adaptiveResult._output_types.output_subjects = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("dates")) {
+            adaptiveResult.output_dates = messages.map(msg => msg.date || null);
+            adaptiveResult._output_types.output_dates = 'string_array';
+          }
+          
+          if (config.emailInformation.includes("sender_display_names")) {
+            adaptiveResult.output_sender_display_names = messages.map(msg => msg.sender?.name || null);
+            adaptiveResult._output_types.output_sender_display_names = 'string_array';
+          }
+        }
+      }
+
+      // Add summary information
+      adaptiveResult.summary = {
+        unreadCount: messages.length,
+        label: config.label || "INBOX",
+        uniqueSenders: new Set(
+          messages.map(msg => msg.sender?.email).filter(Boolean)
+        ).size,
+      };
+
+      return {
+        success: true,
+        data: adaptiveResult,
+      };
     } catch (error) {
       return {
         success: false,
@@ -239,16 +348,22 @@ export class GmailExecutor extends AbstractExecutor {
       const subject = this.getInputValueOrConfig(context, 'input_subject', config, 'subject');
       const body = this.getInputValueOrConfig(context, 'input_body', config, 'body');
 
-      if (!to || !subject || !body) {
+      // Apply type transformations if needed
+      // For example, if 'to' is an array, get the first item
+      const toEmail = Array.isArray(to) ? to[0] : to;
+      const emailSubject = Array.isArray(subject) ? subject[0] : subject;
+      const emailBody = Array.isArray(body) ? body[0] : body;
+
+      if (!toEmail || !emailSubject || !emailBody) {
         throw new Error("Missing required fields for sending email");
       }
 
       const email = [
-        `To: ${to}`,
-        `Subject: ${subject}`,
+        `To: ${toEmail}`,
+        `Subject: ${emailSubject}`,
         "Content-Type: text/plain; charset=utf-8",
         "",
-        body,
+        emailBody,
       ].join("\r\n");
 
       const encodedEmail = Buffer.from(email)
@@ -276,11 +391,14 @@ export class GmailExecutor extends AbstractExecutor {
           messageId: response.id,
           threadId: response.threadId,
           details: {
-            to,
-            subject,
+            to: toEmail,
+            subject: emailSubject,
             timestamp: new Date().toISOString(),
-            displayText: `Email sent → To: ${to}, Subject: ${subject}`,
+            displayText: `Email sent → To: ${toEmail}, Subject: ${emailSubject}`,
           },
+          _output_types: {
+            output_status: 'boolean'
+          }
         },
       };
     } catch (error) {
@@ -300,6 +418,9 @@ export class GmailExecutor extends AbstractExecutor {
             timestamp: new Date().toISOString(),
             displayText: `Failed to send email`,
           },
+          _output_types: {
+            output_status: 'boolean'
+          }
         },
       };
     }

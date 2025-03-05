@@ -7,8 +7,10 @@ export interface Port {
   label: string;
   type: "string" | "number" | "boolean" | "array" | "object";
   isActive?: boolean;
+  isListType?: boolean | ((config: any) => boolean); // Can be a boolean or a function that determines list status
 }
 
+// Other interfaces remain the same
 export interface ConfigField {
   name: string;
   label: string;
@@ -41,7 +43,10 @@ export interface ActionConfig {
     inputs: Port[];
     outputs: Port[];
   };
+  // Add new method to evaluate port types based on config
+  getPortListTypes?: (config: any) => Record<string, boolean>;
 }
+
 
 export interface ServiceConfig {
   id: string;

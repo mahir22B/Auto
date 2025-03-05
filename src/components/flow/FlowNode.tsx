@@ -1,3 +1,4 @@
+// src/components/flow/FlowNode.tsx
 import React from "react";
 import { Handle, Position } from "reactflow";
 import { Card } from "@/components/ui/card";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { X, CheckCircle2, XCircle } from "lucide-react";
+import { X } from "lucide-react";
 import { SERVICES } from "@/lib/services";
 import { cn } from "@/lib/utils";
 import {
@@ -17,6 +18,13 @@ import {
 } from "@/components/ui/select";
 import GooglePicker from "../GooglePickerComponent";
 
+interface PortTypeInfo {
+  nodeId: string;
+  portId: string;
+  type: string;
+  isAdaptive?: boolean;
+}
+
 interface FlowNodeProps {
   data: {
     config: any;
@@ -27,6 +35,8 @@ interface FlowNodeProps {
       tokens?: any;
     };
     onAuth: () => void;
+    portTypes?: PortTypeInfo[];
+    removePortConnections?: (portId: string) => void;
     updateNodeConfig: (config: any) => void;
     executionState?: {
       success: boolean;
@@ -98,10 +108,54 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     console.log("Updating config:", newConfig);
     setConfig(newConfig);
     
+    // Check if we need to clean up connections from removed ports
+    if (data.removePortConnections && config.ports && newConfig.ports) {
+      // For Gmail email reader, check if emailInformation was changed
+      if (data.service === 'gmail' && config.action === 'READ_UNREAD' && 
+          updates.emailInformation && config.emailInformation !== updates.emailInformation) {
+        
+        // Find ports that are removed (were active but are now inactive)
+        const oldActivePorts = config.ports.outputs.filter(port => port.isActive !== false).map(p => p.id);
+        const newActivePorts = newConfig.ports.outputs.filter(port => port.isActive !== false).map(p => p.id);
+        
+        // Find ports that were removed
+        const removedPorts = oldActivePorts.filter(id => !newActivePorts.includes(id));
+        
+        // Clean up connections for removed ports
+        removedPorts.forEach(portId => {
+          data.removePortConnections!(portId);
+        });
+      }
+      
+      // For Sheets reader, check if selectedColumns was changed
+      if (data.service === 'sheets' && 
+          (config.action === 'READ_SHEET' || config.action === 'WRITE_SHEET' || config.action === 'UPDATE_SHEET') && 
+          updates.selectedColumns) {
+        
+        // Find ports that are now inactive
+        const oldSelectedColumns = config.selectedColumns || [];
+        const newSelectedColumns = updates.selectedColumns || [];
+        
+        // Find columns that were removed
+        const removedColumns = oldSelectedColumns.filter(col => !newSelectedColumns.includes(col));
+        
+        // Clean up connections for removed ports (either input or output depending on the action)
+        removedColumns.forEach(column => {
+          if (config.action === 'READ_SHEET') {
+            data.removePortConnections!(`output_${column}`);
+          } else if (config.action === 'WRITE_SHEET' || config.action === 'UPDATE_SHEET') {
+            data.removePortConnections!(`input_${column}`);
+          }
+        });
+      }
+    }
+    
     // Update ports when relevant selections change
     if (
       (updates.selectedColumns && data.service === 'sheets') || 
-      (updates.emailInformation && data.service === 'gmail')
+      (updates.emailInformation && data.service === 'gmail') ||
+      // Add this condition to update ports when maxResults changes for Gmail
+      (updates.maxResults !== undefined && data.service === 'gmail' && config.action === 'READ_UNREAD')
     ) {
       if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
         const ports = actions[newConfig.action].getDynamicPorts(newConfig);
@@ -154,13 +208,13 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     }
   }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
 
-  // Update ports when selectedColumns change
+  // Update ports when configuration changes
   React.useEffect(() => {
     if (
       (config.action && actions[config.action]?.getDynamicPorts) && 
       (
         (data.service === 'sheets' && config.selectedColumns) ||
-        (data.service === 'gmail' && config.emailInformation)
+        (data.service === 'gmail' && (config.emailInformation || config.maxResults !== undefined))
       )
     ) {
       const ports = actions[config.action].getDynamicPorts(config);
@@ -169,7 +223,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         ports,
       });
     }
-  }, [config.selectedColumns, config.emailInformation, config.action]);
+  }, [config.selectedColumns, config.emailInformation, config.maxResults, config.action]);
 
   const renderPorts = () => {
     if (!config.action || !actions[config.action]?.ports) return null;
@@ -215,6 +269,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           {inputs.map((port, index) => {
             const handleStatus = getHandleStatus(port, true);
             const isActive = handleStatus !== 'inactive';
+            const isList = port.isListType === true; // Get directly from port definition
             
             return (
               <div
@@ -233,7 +288,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                 <div 
                   className={`absolute top-0 transform -translate-y-full -translate-x-1/2 left-1/2 ${!isActive ? 'opacity-0' : ''}`}
                 >
-                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center" 
+                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
                        style={{ 
                          marginBottom: '7px', 
                          minWidth: '50px',
@@ -242,6 +297,19 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                        }}
                   >
                     {formatLabelOneWordPerLine(port.label)}
+                    
+                    {/* Simple list indicator */}
+                    {isActive && isList && (
+                      <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
+                          <rect x="8" y="8" width="8" height="2" fill="currentColor" />
+                          <rect x="8" y="12" width="8" height="2" fill="currentColor" />
+                          <rect x="8" y="16" width="8" height="2" fill="currentColor" />
+                        </svg>
+                        List
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -276,6 +344,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           {outputs.map((port, index) => {
             const handleStatus = getHandleStatus(port, false);
             const isActive = handleStatus !== 'inactive';
+            const isList = port.isListType === true; // Get directly from port definition
             
             return (
               <div
@@ -287,7 +356,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
-                  // margin: "0 38px" from the last active port
                   ...(isActive ? { margin: "0 38px" } : {})
                 }}
               >
@@ -295,7 +363,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                 <div 
                   className={`absolute bottom-0 transform translate-y-full -translate-x-1/2 left-1/2 ${!isActive ? 'opacity-0' : ''}`}
                 >
-                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center" 
+                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
                        style={{ 
                          marginTop: '7px', 
                          minWidth: '50px',
@@ -304,6 +372,19 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                        }}
                   >
                     {formatLabelOneWordPerLine(port.label)}
+                    
+                    {/* Simple list indicator */}
+                    {isActive && isList && (
+                      <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
+                          <rect x="8" y="8" width="8" height="2" fill="currentColor" />
+                          <rect x="8" y="12" width="8" height="2" fill="currentColor" />
+                          <rect x="8" y="16" width="8" height="2" fill="currentColor" />
+                        </svg>
+                        List
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -602,6 +683,3 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
 };
 
 export default FlowNode;
-
-
-// Minimum distance between ports is 38px

@@ -2,28 +2,6 @@
 import { ActionConfig } from '../services';
 import { SheetReader } from './executor';
 
-// Handler for sheet selection
-// async function handleSheetSelection(fileDetails: any, currentConfig: any, context: any) {
-//   try {
-//     // Initialize sheet reader and get metadata
-//     const sheetReader = new SheetReader();
-//     const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
-//     console.log("META", metadata);
-
-//     // Return updated configuration
-//     return {
-//       ...currentConfig,
-//       spreadsheetId: fileDetails.id,
-//       fileDetails,
-//       availableColumns: metadata.columns,
-//       selectedColumns: []
-//     };
-//   } catch (error) {
-//     console.error('Error handling sheet selection:', error);
-//     throw error;
-//   }
-// }
-
 export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
   READ_SHEET: {
     id: 'READ_SHEET',
@@ -45,14 +23,15 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
             const sheetReader = new SheetReader();
             const metadata = await sheetReader.getSheetMetadata(fileDetails.id, context);
             
-            // Create static ports for all available columns
+            // Create static ports for all available columns with list type
             const ports = {
               inputs: [],
               outputs: metadata.columns.map(column => ({
                 id: `output_${column}`,
                 label: column,
                 type: 'string',
-                isActive: false // Initially all ports are inactive
+                isActive: false,
+                isListType: true // All sheet outputs are lists
               }))
             };
 
@@ -91,7 +70,8 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
         inputs: [],
         outputs: config.ports.outputs.map(port => ({
           ...port,
-          isActive: config.selectedColumns?.includes(port.label) || false
+          isActive: config.selectedColumns?.includes(port.label) || false,
+          isListType: true // Always lists for sheet reader
         }))
       };
     }
@@ -122,10 +102,11 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
                 id: `input_${column}`,
                 label: column,
                 type: 'string',
-                isActive: false // Initially all ports are inactive
+                isActive: false,
+                isListType: false // Input ports are not lists
               })),
               outputs: [
-                { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true }
+                { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true, isListType: false }
               ]
             };
 
@@ -162,14 +143,14 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     ports: {
       inputs: [],
       outputs: [
-        { id: 'sheetLink', label: 'Sheet Link', type: 'string' }
+        { id: 'sheetLink', label: 'Sheet Link', type: 'string', isListType: false }
       ]
     },
     getDynamicPorts: (config: any) => {
       if (!config.ports) return { 
         inputs: [],
         outputs: [
-          { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true }
+          { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true, isListType: false }
         ]
       };
 
@@ -177,7 +158,8 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
       return {
         inputs: config.ports.inputs.map(port => ({
           ...port,
-          isActive: config.selectedColumns?.includes(port.label) || false
+          isActive: config.selectedColumns?.includes(port.label) || false,
+          isListType: false
         })),
         outputs: config.ports.outputs
       };
@@ -207,16 +189,17 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
             const ports = {
               inputs: [
                 // Always add search value as an input port
-                { id: `input_search_value`, label: 'Search Value', type: 'string', isActive: true },
+                { id: `input_search_value`, label: 'Search Value', type: 'string', isActive: true, isListType: false },
                 ...metadata.columns.map(column => ({
                   id: `input_${column}`,
                   label: column,
                   type: 'string',
-                  isActive: false // Initially all ports are inactive
+                  isActive: false,
+                  isListType: false
                 }))
               ],
               outputs: [
-                { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true }
+                { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true, isListType: false }
               ]
             };
 
@@ -234,13 +217,6 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
           }
         }
       },
-      // {
-      //   name: 'sheetName',
-      //   label: 'Sheet Name',
-      //   type: 'string',
-      //   required: false,
-      //   placeholder: 'Leave blank for first sheet'
-      // },
       {
         name: 'selectedColumns',
         label: 'Select Columns',
@@ -278,19 +254,19 @@ export const SHEETS_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [
-        { id: 'input_search_value', label: 'Search Value', type: 'string', isActive: true }
+        { id: 'input_search_value', label: 'Search Value', type: 'string', isActive: true, isListType: false }
       ],
       outputs: [
-        { id: 'sheetLink', label: 'Sheet Link', type: 'string' }
+        { id: 'sheetLink', label: 'Sheet Link', type: 'string', isListType: false }
       ]
     },
     getDynamicPorts: (config: any) => {
       if (!config.ports) return { 
         inputs: [
-          { id: 'input_search_value', label: 'Search Value', type: 'string', isActive: true }
+          { id: 'input_search_value', label: 'Search Value', type: 'string', isActive: true, isListType: false }
         ],
         outputs: [
-          { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true }
+          { id: 'sheetLink', label: 'Sheet Link', type: 'string', isActive: true, isListType: false }
         ]
       };
 

@@ -1,3 +1,4 @@
+// src/components/flow/FlowBuilder.tsx
 import React, { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import { v4 as uuidv4 } from 'uuid';
 import '@/lib/executors';
@@ -12,13 +13,14 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X, PlayCircle, ChevronLeft } from "lucide-react";
+import { Plus, X, PlayCircle, ChevronLeft, AlertCircle } from "lucide-react";
 import FlowNode from "./FlowNode";
 import CustomEdge from "./CustomEdge";
 import { Workflow } from "@/lib/gdrive/types";
 import { SERVICES } from "@/lib/services";
 import { WorkflowExecutor } from "@/lib/workflow/executor";
 import ExecutionResultsPanel from "../ExecutionResultsPanel";
+import { areTypesCompatible } from "@/lib/types/PortTypes";
 
 const nodeTypes = {
   gdrive: FlowNode,
@@ -29,6 +31,14 @@ const nodeTypes = {
 const edgeTypes = {
   custom: CustomEdge,
 };
+
+// Type information for ports - will be updated during workflow execution
+interface PortTypeInfo {
+  nodeId: string;
+  portId: string;
+  type: string;
+  isAdaptive?: boolean;
+}
 
 const generateId = () => `node_${uuidv4()}`;
 
@@ -53,6 +63,20 @@ const FlowBuilder = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({});
   const [showResultsPanel, setShowResultsPanel] = useState(false);
+  const [portTypes, setPortTypes] = useState<PortTypeInfo[]>([]);
+  const [incompatibleConnection, setIncompatibleConnection] = useState<{
+    sourceType: string;
+    targetType: string;
+    message: string;
+  } | null>(null);
+
+  // Function to remove connections for a specific port
+  const removePortConnections = useCallback((nodeId: string, portId: string) => {
+    setEdges((eds) => eds.filter((edge) => 
+      !(edge.source === nodeId && edge.sourceHandle === portId) && 
+      !(edge.target === nodeId && edge.targetHandle === portId)
+    ));
+  }, [setEdges]);
 
   // Update nodes when auth state or execution results change
   useEffect(() => {
@@ -64,13 +88,15 @@ const FlowBuilder = ({
             ...node.data,
             key: `${node.type}-${authState[node.type].isAuthenticated}`,
             authState: authState[node.type],
-            executionState: executionResults[node.id]
+            executionState: executionResults[node.id],
+            portTypes: portTypes.filter(pt => pt.nodeId === node.id),
+            removePortConnections
           }
         };
       }
       return node;
     }));
-  }, [authState, executionResults, setNodes]);
+  }, [authState, executionResults, portTypes, setNodes, removePortConnections]);
 
   const handleExecuteWorkflow = async () => {
     if (!nodes.length) return;
@@ -103,6 +129,24 @@ const FlowBuilder = ({
       });
       
       setExecutionResults(enhancedResults);
+      
+      // Update port type information based on execution results
+      if (results.nodeOutputTypes) {
+        const newPortTypes: PortTypeInfo[] = [];
+        
+        Object.entries(results.nodeOutputTypes).forEach(([nodeId, typesMap]) => {
+          Object.entries(typesMap).forEach(([portId, typeName]) => {
+            newPortTypes.push({
+              nodeId,
+              portId,
+              type: typeName,
+              isAdaptive: typeName.includes('adaptive')
+            });
+          });
+        });
+        
+        setPortTypes(newPortTypes);
+      }
     } catch (error) {
       console.error('Workflow execution failed:', error);
     } finally {
@@ -120,6 +164,8 @@ const FlowBuilder = ({
       delete next[nodeId];
       return next;
     });
+    // Remove port types for this node
+    setPortTypes(prev => prev.filter(pt => pt.nodeId !== nodeId));
   }, [setNodes, setEdges]);
 
   const createNode = useCallback(
@@ -141,6 +187,8 @@ const FlowBuilder = ({
           service: serviceId,
           authState: authState[serviceId] || { isAuthenticated: false },
           onAuth: () => onAuth(serviceId),
+          portTypes: [],
+          removePortConnections: (portId: string) => removePortConnections(newId, portId),
           updateNodeConfig: (newConfig: any) => {
             console.log('Updating node config:', { id: newId, newConfig });
             setNodes(nds => 
@@ -163,7 +211,7 @@ const FlowBuilder = ({
         return [...currentNodes, newNode];
       });
     },
-    [setNodes, handleDeleteNode, authState, onAuth]
+    [setNodes, handleDeleteNode, authState, onAuth, removePortConnections]
   );
 
   const filteredServices = useMemo(() => 
@@ -175,12 +223,49 @@ const FlowBuilder = ({
     [searchTerm]
   );
 
+  // Enhanced onConnect with type checking
   const onConnect = useCallback(
     (params: Connection) => {
+      // Get the source and target nodes and their ports
+      const sourceNode = nodes.find(n => n.id === params.source);
+      const targetNode = nodes.find(n => n.id === params.target);
+      
+      if (!sourceNode || !targetNode || !params.sourceHandle || !params.targetHandle) {
+        return; // Can't check types without proper parameters
+      }
+      
+      // Find type information for the ports
+      const sourcePortType = portTypes.find(
+        pt => pt.nodeId === params.source && pt.portId === params.sourceHandle
+      );
+      
+      const targetPortType = portTypes.find(
+        pt => pt.nodeId === params.target && pt.portId === params.targetHandle
+      );
+      
+      // If we have port type information, check compatibility
+      if (sourcePortType && targetPortType) {
+        const isCompatible = areTypesCompatible(sourcePortType.type, targetPortType.type);
+        
+        if (!isCompatible) {
+          // Show warning and don't create the connection
+          setIncompatibleConnection({
+            sourceType: sourcePortType.type,
+            targetType: targetPortType.type,
+            message: `Cannot connect ${sourcePortType.type} to ${targetPortType.type}`
+          });
+          return;
+        }
+      }
+      
+      // Clear any previous incompatible connection message
+      setIncompatibleConnection(null);
+      
+      // Create the edge with the custom type
       const edge = { ...params, type: 'custom' };
       setEdges((eds) => addEdge(edge, eds));
     },
-    [setEdges]
+    [setEdges, nodes, portTypes]
   );
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -258,6 +343,23 @@ const FlowBuilder = ({
         >
           <ChevronLeft/>
         </Button>
+      )}
+      
+      {/* Type incompatibility warning */}
+      {incompatibleConnection && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-50 border border-yellow-400 text-yellow-700 p-3 rounded shadow-lg flex items-center">
+          <AlertCircle className="h-5 w-5 mr-2 text-yellow-500" />
+          <div>
+            <p className="font-medium">Type Mismatch</p>
+            <p className="text-sm">{incompatibleConnection.message}</p>
+          </div>
+          <button 
+            className="ml-4 text-gray-500 hover:text-gray-700"
+            onClick={() => setIncompatibleConnection(null)}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       {/* Services Sidebar */}

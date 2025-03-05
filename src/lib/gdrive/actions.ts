@@ -1,3 +1,4 @@
+// src/lib/gdrive/actions.ts
 import { GDriveAction } from './types';
 import { ActionConfig } from '../services';
 
@@ -23,8 +24,8 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     ports: {
       inputs: [],
       outputs: [
-        { id: 'output_fileName', label: 'File Name', type: 'string', isActive: true },
-        { id: 'output_fileContents', label: 'File Contents', type: 'string', isActive: true }
+        { id: 'output_fileName', label: 'File Name', type: 'string', isActive: true, isListType: false },
+        { id: 'output_fileContents', label: 'File Contents', type: 'string', isActive: true, isListType: false }
       ]
     }
   },
@@ -50,7 +51,7 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     ports: {
       inputs: [],
       outputs: [
-        { id: 'output_files', label: 'Files', type: 'array', isActive: true }
+        { id: 'output_files', label: 'Files', type: 'array', isActive: true, isListType: true }
       ]
     }
   },
@@ -87,11 +88,11 @@ export const GDRIVE_ACTIONS: Record<string, ActionConfig> = {
     ],
     ports: {
       inputs: [
-        { id: 'input_fileName', label: 'File Name', type: 'string', isActive: true },
-        { id: 'input_content', label: 'File Content', type: 'string', isActive: true }
+        { id: 'input_fileName', label: 'File Name', type: 'string', isActive: true, isListType: false },
+        { id: 'input_content', label: 'File Content', type: 'string', isActive: true, isListType: false }
       ],
       outputs: [
-        { id: 'output_fileUrl', label: 'Drive URL', type: 'string', isActive: true }
+        { id: 'output_fileUrl', label: 'Drive URL', type: 'string', isActive: true, isListType: false }
       ]
     }
   }

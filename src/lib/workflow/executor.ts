@@ -3,6 +3,7 @@
 import { Node, Edge } from "reactflow";
 import { ExecutorRegistry } from "../executors/registry";
 import { ExecutorContext } from "../executors/types";
+import { transformValue, getTypeTransformation } from "../types/PortTypes";
 
 export class WorkflowExecutor {
   private getNodeOrder(nodes: Node[], edges: Edge[]): string[] {
@@ -41,6 +42,7 @@ export class WorkflowExecutor {
     const nodeOrder = this.getNodeOrder(nodes, edges);
     const nodeResults: Record<string, any> = {};
     const nodeOutputs: Record<string, Record<string, any>> = {};
+    const nodeOutputTypes: Record<string, Record<string, string>> = {};
 
     console.log("Executing workflow with node order:", nodeOrder);
 
@@ -81,16 +83,28 @@ export class WorkflowExecutor {
           const sourceData = nodeOutputs[sourceNodeId][sourceHandle];
           
           if (sourceData !== undefined) {
+            // Get the source and target data types
+            const sourceType = nodeOutputTypes[sourceNodeId]?.[sourceHandle] || 'any';
+            const targetType = 'any'; // We'll need to define input types later
+            
+            // Determine what transformation is needed
+            const transformation = getTypeTransformation(sourceType, targetType);
+            
+            // Apply transformation if needed
+            const transformedData = transformation 
+              ? transformValue(sourceData, transformation)
+              : sourceData;
+            
             // Store for executor context
             inputs.push({
               sourceNode: sourceNodeId,
               sourceHandle: sourceHandle,
               targetHandle: targetHandle,
-              data: sourceData
+              data: transformedData
             });
             
             // Store for direct access in the node
-            inputData[targetHandle] = sourceData;
+            inputData[targetHandle] = transformedData;
           }
         }
 
@@ -129,6 +143,13 @@ export class WorkflowExecutor {
         // Store individual outputs with their handle IDs
         nodeOutputs[nodeId] = {};
         if (result.success && result.data) {
+          // Extract types info for later use
+          if (result.data._output_types) {
+            nodeOutputTypes[nodeId] = result.data._output_types;
+            // Don't include types in the output data
+            delete result.data._output_types;
+          }
+          
           for (const [key, value] of Object.entries(result.data)) {
             nodeOutputs[nodeId][key] = value;
           }
@@ -147,6 +168,6 @@ export class WorkflowExecutor {
       }
     }
 
-    return { nodeResults };
+    return { nodeResults, nodeOutputTypes };
   }
 }
