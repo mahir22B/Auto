@@ -42,7 +42,7 @@ interface FlowNodeProps {
 const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const [config, setConfig] = React.useState(data.config);
   const [showAuthPrompt, setShowAuthPrompt] = React.useState(false);
-  // const [showExecutionData, setShowExecutionData] = React.useState(false);
+  const [nodeWidth, setNodeWidth] = React.useState(320); // Default width
 
   const serviceConfig = SERVICES[data.service];
   const { name, icon, actions } = serviceConfig;
@@ -53,29 +53,68 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     setConfig(data.config);
   }, [data.config]);
 
+  // Calculate port spacing based on the number of ports
+  const calculatePortSpacing = (portCount) => {
+    const baseWidth = 90;
+    const minWidth = 80;
+    const reductionFactor = Math.min(1, 6 / portCount);
+    return Math.max(minWidth, baseWidth * reductionFactor);
+  };
 
-const handleConfigChange = (updates: Partial<any>) => {
-  const newConfig = { ...config, ...updates };
-  console.log("Updating config:", newConfig);
-  setConfig(newConfig);
-  
-  // Update ports when relevant selections change
-  if (
-    (updates.selectedColumns && data.service === 'sheets') || 
-    (updates.emailInformation && data.service === 'gmail')
-  ) {
-    if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
-      const ports = actions[newConfig.action].getDynamicPorts(newConfig);
-      data.updateNodeConfig({
-        ...newConfig,
-        ports,
-      });
-      return;
+  // Calculate and update the node width when ports change
+  React.useEffect(() => {
+    if (config.action && actions[config.action]?.ports) {
+      const { inputs = [], outputs = [] } = 
+        config.ports || actions[config.action].ports;
+      
+      // Count active ports only
+      const getActivePorts = (ports) => {
+        return ports.filter(port => port.isActive !== false);
+      };
+      
+      const activePorts = {
+        inputs: getActivePorts(inputs),
+        outputs: getActivePorts(outputs)
+      };
+      
+      // Calculate width based on active ports
+      const inputPortWidth = calculatePortSpacing(activePorts.inputs.length);
+      const outputPortWidth = calculatePortSpacing(activePorts.outputs.length);
+      
+      // Determine which set of ports needs more width
+      const maxPortCount = Math.max(activePorts.inputs.length, activePorts.outputs.length);
+      const portWidth = Math.max(inputPortWidth, outputPortWidth);
+      
+      // Calculate the node width with padding
+      const calculatedWidth = Math.max(320, (maxPortCount * portWidth) + 80);
+      
+      // Set the new width with a slight delay to allow for animation
+      setNodeWidth(calculatedWidth);
     }
-  }
-  
-  data.updateNodeConfig(newConfig);
-};
+  }, [config.action, config.ports, config.selectedColumns]);
+
+  const handleConfigChange = (updates: Partial<any>) => {
+    const newConfig = { ...config, ...updates };
+    console.log("Updating config:", newConfig);
+    setConfig(newConfig);
+    
+    // Update ports when relevant selections change
+    if (
+      (updates.selectedColumns && data.service === 'sheets') || 
+      (updates.emailInformation && data.service === 'gmail')
+    ) {
+      if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
+        const ports = actions[newConfig.action].getDynamicPorts(newConfig);
+        data.updateNodeConfig({
+          ...newConfig,
+          ports,
+        });
+        return;
+      }
+    }
+    
+    data.updateNodeConfig(newConfig);
+  };
 
   const handleActionSelect = async (action: string) => {
     if (!data.authState.isAuthenticated) {
@@ -116,181 +155,184 @@ const handleConfigChange = (updates: Partial<any>) => {
   }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
 
   // Update ports when selectedColumns change
-React.useEffect(() => {
-  if (
-    (config.action && actions[config.action]?.getDynamicPorts) && 
-    (
-      (data.service === 'sheets' && config.selectedColumns) ||
-      (data.service === 'gmail' && config.emailInformation)
-    )
-  ) {
-    const ports = actions[config.action].getDynamicPorts(config);
-    data.updateNodeConfig({
-      ...config,
-      ports,
-    });
-  }
-}, [config.selectedColumns, config.emailInformation, config.action]);
-
-  // const renderExecutionState = () => {
-  //   if (!data.executionState) return null;
-
-  //   return (
-  //     <div
-  //       className={cn(
-  //         "mt-4 p-3 rounded-md text-sm",
-  //         data.executionState.success
-  //           ? "bg-green-50 border border-green-200"
-  //           : "bg-red-50 border border-red-200"
-  //       )}
-  //     >
-  //       <div className="flex items-center gap-2">
-  //         {data.executionState.success ? (
-  //           <CheckCircle2 className="h-4 w-4 text-green-600" />
-  //         ) : (
-  //           <XCircle className="h-4 w-4 text-red-600" />
-  //         )}
-  //         <span
-  //           className={
-  //             data.executionState.success ? "text-green-700" : "text-red-700"
-  //           }
-  //         >
-  //           {data.executionState.success
-  //             ? "Execution successful"
-  //             : "Execution failed"}
-  //         </span>
-  //       </div>
-
-  //       {data.executionState.error && (
-  //         <div className="mt-2 text-red-600">
-  //           Error: {data.executionState.error}
-  //         </div>
-  //       )}
-
-  //       {data.executionState.success && data.executionState.data && (
-  //         <div className="mt-2">
-  //           <Button
-  //             variant="ghost"
-  //             size="sm"
-  //             className="text-xs"
-  //             onClick={() => setShowExecutionData(!showExecutionData)}
-  //           >
-  //             {showExecutionData ? "Hide" : "Show"} Results
-  //           </Button>
-  //           {showExecutionData && (
-  //             <pre className="mt-2 p-2 bg-black/5 rounded text-xs overflow-auto max-h-40">
-  //               {JSON.stringify(data.executionState.data, null, 2)}
-  //             </pre>
-  //           )}
-  //         </div>
-  //       )}
-  //     </div>
-  //   );
-  // };
-
-// This is a snippet that would replace the renderPorts function in src/components/flow/FlowNode.tsx
-
-const renderPorts = () => {
-  if (!config.action || !actions[config.action]?.ports) return null;
-
-  const { inputs = [], outputs = [] } =
-    config.ports || actions[config.action].ports;
-
-  // Function to get handle status for visual representation
-  const getHandleStatus = (port: any, isInput: boolean) => {
-    // Check if there's an execution state for this node
-    if (data.executionState?.success) {
-      // For outputs, check if there's actual data available
-      if (!isInput && data.executionState.data && data.executionState.data[port.id] !== undefined) {
-        return 'active-data'; // This output has actual data flowing through it
-      }
+  React.useEffect(() => {
+    if (
+      (config.action && actions[config.action]?.getDynamicPorts) && 
+      (
+        (data.service === 'sheets' && config.selectedColumns) ||
+        (data.service === 'gmail' && config.emailInformation)
+      )
+    ) {
+      const ports = actions[config.action].getDynamicPorts(config);
+      data.updateNodeConfig({
+        ...config,
+        ports,
+      });
     }
+  }, [config.selectedColumns, config.emailInformation, config.action]);
+
+  const renderPorts = () => {
+    if (!config.action || !actions[config.action]?.ports) return null;
+  
+    const { inputs = [], outputs = [] } =
+      config.ports || actions[config.action].ports;
+  
+    // Function to get handle status for visual representation
+    const getHandleStatus = (port: any, isInput: boolean) => {
+      // Check if there's an execution state for this node
+      if (data.executionState?.success) {
+        // For outputs, check if there's actual data available
+        if (!isInput && data.executionState.data && data.executionState.data[port.id] !== undefined) {
+          return 'active-data'; // This output has actual data flowing through it
+        }
+      }
+      
+      return port.isActive ? 'active' : 'inactive';
+    };
+  
+    // Function to format port label with one word per line without truncation
+    const formatLabelOneWordPerLine = (label: string) => {
+      // Split by spaces and join with line breaks
+      return label.split(' ').map((word, i) => (
+        <div key={i} className="text-center" style={{ fontSize: '0.65rem', lineHeight: '1.1' }}>{word}</div>
+      ));
+    };
+  
+    // Count active ports
+    const activePorts = {
+      inputs: inputs.filter(port => port.isActive !== false),
+      outputs: outputs.filter(port => port.isActive !== false)
+    };
     
-    return port.isActive ? 'active' : 'inactive';
+    // Calculate port width allocations
+    const inputPortWidth = calculatePortSpacing(activePorts.inputs.length);
+    const outputPortWidth = calculatePortSpacing(activePorts.outputs.length);
+  
+    return (
+      <>
+        {/* Input Ports with increased spacing */}
+        <div className="absolute -top-1.5 left-0 right-0 flex justify-evenly items-center px-4">
+          {inputs.map((port, index) => {
+            const handleStatus = getHandleStatus(port, true);
+            const isActive = handleStatus !== 'inactive';
+            
+            return (
+              <div
+                key={`${port.id}-${index}`}
+                className={`relative ${isActive ? 'group' : 'pointer-events-none'}`}
+                style={{
+                  width: `${inputPortWidth}px`,
+                  height: "24px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                {/* Label with no truncation */}
+                <div 
+                  className={`absolute top-0 transform -translate-y-full -translate-x-1/2 left-1/2 ${!isActive ? 'opacity-0' : ''}`}
+                >
+                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center" 
+                       style={{ 
+                         marginBottom: '7px', 
+                         minWidth: '50px',
+                         maxWidth: '70px',
+                         width: 'auto'
+                       }}
+                  >
+                    {formatLabelOneWordPerLine(port.label)}
+                  </div>
+                </div>
+                
+                <Handle
+                  type="target"
+                  position={Position.Top}
+                  id={port.id}
+                  isConnectable={isConnectable && isActive}
+                  style={{
+                    minWidth: '9px',
+                    minHeight: '9px',
+                    width: '9px',
+                    height: '9px',
+                    top: 0
+                  }}
+                  className={cn(
+                    "rounded-full border-2 transition-colors",
+                    handleStatus === 'inactive' ? 
+                      "!bg-transparent !border-transparent opacity-0" :
+                    handleStatus === 'active-data' ?
+                      "!bg-blue-500 !border-black !shadow-sm !shadow-blue-300" :
+                      "!bg-white !border-black"
+                  )}
+                />
+              </div>
+            );
+          })}
+        </div>
+  
+        {/* Output Ports with increased spacing */}
+        <div className="absolute -bottom-1.5 left-0 right-0 flex justify-evenly items-center px-4">
+          {outputs.map((port, index) => {
+            const handleStatus = getHandleStatus(port, false);
+            const isActive = handleStatus !== 'inactive';
+            
+            return (
+              <div
+                key={`${port.id}-${index}`}
+                className={`relative ${isActive ? 'group' : 'pointer-events-none'}`}
+                style={{
+                  width: `${outputPortWidth}px`,
+                  height: "24px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                {/* Label with no truncation */}
+                <div 
+                  className={`absolute bottom-0 transform translate-y-full -translate-x-1/2 left-1/2 ${!isActive ? 'opacity-0' : ''}`}
+                >
+                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center" 
+                       style={{ 
+                         marginTop: '7px', 
+                         minWidth: '50px',
+                         maxWidth: '70px',
+                         width: 'auto'
+                       }}
+                  >
+                    {formatLabelOneWordPerLine(port.label)}
+                  </div>
+                </div>
+                
+                <Handle
+                  type="source"
+                  position={Position.Bottom}
+                  id={port.id}
+                  isConnectable={isConnectable && isActive}
+                  style={{
+                    minWidth: '9px',
+                    minHeight: '9px',
+                    width: '9px',
+                    height: '9px',
+                    bottom: 0
+                  }}
+                  className={cn(
+                    "rounded-full border-2 transition-colors",
+                    handleStatus === 'inactive' ? 
+                      "!bg-transparent !border-transparent opacity-0" :
+                    handleStatus === 'active-data' ?
+                      "!bg-green-500 !border-black !shadow-sm !shadow-green-300" :
+                      "!bg-white !border-black"
+                  )}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
   };
 
-  return (
-    <>
-      {/* Input Ports */}
-      <div className="absolute -top-3 left-0 right-0 flex justify-evenly items-center px-4">
-        {inputs.map((port, index) => {
-          const handleStatus = getHandleStatus(port, true);
-          
-          return (
-            <div
-              key={`${port.id}-${index}`}
-              className={`relative ${handleStatus !== 'inactive' ? 'group' : 'pointer-events-none'}`}
-              style={{
-                width: "24px",
-                height: "24px",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Handle
-                type="target"
-                position={Position.Top}
-                id={port.id}
-                isConnectable={isConnectable && handleStatus !== 'inactive'}
-                className={cn(
-                  "w-3 h-3 rounded-full border-2 transition-colors",
-                  handleStatus === 'inactive' ? 
-                    "!bg-transparent !border-transparent opacity-0" :
-                  handleStatus === 'active-data' ?
-                    "!bg-blue-500 !border-blue-600 !shadow-sm !shadow-blue-300" :
-                    "!bg-white !border-gray-400"
-                )}
-              />
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
-                {port.label}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Output Ports */}
-      <div className="absolute -bottom-3 left-0 right-0 flex justify-evenly items-center px-4">
-        {outputs.map((port, index) => {
-          const handleStatus = getHandleStatus(port, false);
-          
-          return (
-            <div
-              key={`${port.id}-${index}`}
-              className={`relative ${handleStatus !== 'inactive' ? 'group' : 'pointer-events-none'}`}
-              style={{
-                width: "24px",
-                height: "24px",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Handle
-                type="source"
-                position={Position.Bottom}
-                id={port.id}
-                isConnectable={isConnectable && handleStatus !== 'inactive'}
-                className={cn(
-                  "w-3 h-3 rounded-full border-2 transition-colors",
-                  handleStatus === 'inactive' ? 
-                    "!bg-transparent !border-transparent opacity-0" :
-                  handleStatus === 'active-data' ?
-                    "!bg-green-500 !border-green-600 !shadow-sm !shadow-green-300" :
-                    "!bg-white !border-gray-400"
-                )}
-              />
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 text-xs bg-gray-800 text-white px-2 py-1 rounded whitespace-nowrap pointer-events-none transition-opacity z-50">
-                {port.label}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-};
   const renderHeader = (actionName?: string) => (
     <div className="relative">
       <div className="flex items-center gap-2 mb-4">
@@ -341,18 +383,20 @@ const renderPorts = () => {
     return field.dependencies.every((dep: string) => {
       return config[dep] !== undefined && config[dep] !== null && config[dep] !== '';
     });
-    
-    // For more complex conditions, we can use the visibilityCondition function
-    // if (field.visibilityCondition) {
-    //   return field.visibilityCondition(config);
-    // }
   };
 
   if (config.action) {
     const action = actions[config.action];
-
+    
     return (
-      <Card className={`p-4 w-80 ${selected ? "ring-2 ring-blue-500" : ""}`}>
+      <Card 
+        id={`node-${id}`}
+        className={`p-4 ${selected ? "ring-2 ring-blue-500" : ""}`}
+        style={{ 
+          width: `${nodeWidth}px`,
+          transition: 'width 0.3s ease-out' // Add smooth animation
+        }}
+      >
         {renderPorts()}
         {renderHeader(action.name)}
         {data.service === "sheets" && (
@@ -530,8 +574,6 @@ const renderPorts = () => {
             );
           })}
         </div>
-
-        {/* {renderExecutionState()} */}
       </Card>
     );
   }
@@ -557,3 +599,6 @@ const renderPorts = () => {
 };
 
 export default FlowNode;
+
+
+// Minimum distance between ports is 38px

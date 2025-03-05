@@ -17,12 +17,14 @@ const CustomEdge: React.FC<EdgeProps> = ({
   const [showDelete, setShowDelete] = useState(false);
   const { setEdges } = useReactFlow();
   
+
+  
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
+    sourcePosition,
     targetX,
     targetY,
-    sourcePosition,
     targetPosition,
   });
 
@@ -33,7 +35,7 @@ const CustomEdge: React.FC<EdgeProps> = ({
     if (isHovered) {
       timeoutId = setTimeout(() => {
         setShowDelete(true);
-      }, 300); // 0.4s delay
+      }, 300); // 0.3s delay
     } else {
       setShowDelete(false);
     }
