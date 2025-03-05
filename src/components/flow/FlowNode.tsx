@@ -226,6 +226,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
+                  ...(isActive ? { margin: "0 38px" } : {})
                 }}
               >
                 {/* Label with no truncation */}
@@ -286,6 +287,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
+                  // margin: "0 38px" from the last active port
+                  ...(isActive ? { margin: "0 38px" } : {})
                 }}
               >
                 {/* Label with no truncation */}
