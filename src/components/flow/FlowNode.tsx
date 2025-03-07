@@ -286,7 +286,7 @@ const renderPorts = () => {
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                margin: "0 20px" // Add extra margin for spacing
+                // margin: "0 20px" // Add extra margin for spacing
               }}
             >
               {/* Label with no truncation */}
@@ -360,7 +360,7 @@ const renderPorts = () => {
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                margin: "0 38px" // Add extra margin for spacing
+                // margin: "0 38px" // Add extra margin for spacing
               }}
             >
               {/* Label with no truncation */}
@@ -442,7 +442,7 @@ React.useEffect(() => {
     const portWidth = Math.max(inputPortWidth, outputPortWidth);
     
     // Add extra padding (80px) plus enough space for all ports with their margins
-    const calculatedWidth = Math.max(320, (maxPortCount * portWidth) + (maxPortCount * 76) + 80);
+    const calculatedWidth = Math.max(320, (maxPortCount * portWidth) + (maxPortCount * 35) + 80);
     
     // Set the new width with a slight delay to allow for animation
     setNodeWidth(calculatedWidth);
