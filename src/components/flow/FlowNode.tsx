@@ -225,197 +225,241 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     }
   }, [config.selectedColumns, config.emailInformation, config.maxResults, config.action]);
 
-  const renderPorts = () => {
-    if (!config.action || !actions[config.action]?.ports) return null;
-  
-    const { inputs = [], outputs = [] } =
-      config.ports || actions[config.action].ports;
-  
-    // Function to get handle status for visual representation
-    const getHandleStatus = (port: any, isInput: boolean) => {
-      // Check if there's an execution state for this node
-      if (data.executionState?.success) {
-        // For outputs, check if there's actual data available
-        if (!isInput && data.executionState.data && data.executionState.data[port.id] !== undefined) {
-          return 'active-data'; // This output has actual data flowing through it
-        }
+// In FlowNode.tsx
+
+const renderPorts = () => {
+  if (!config.action || !actions[config.action]?.ports) return null;
+
+  // Get all available ports from the action configuration or node config
+  const { inputs = [], outputs = [] } = config.ports || actions[config.action].ports;
+
+  // Function to get handle status for visual representation
+  const getHandleStatus = (port: any, isInput: boolean) => {
+    // Check if there's an execution state for this node
+    if (data.executionState?.success) {
+      // For outputs, check if there's actual data available
+      if (!isInput && data.executionState.data && data.executionState.data[port.id] !== undefined) {
+        return 'active-data'; // This output has actual data flowing through it
       }
-      
-      return port.isActive ? 'active' : 'inactive';
-    };
+    }
+    
+    return port.isActive ? 'active' : 'inactive';
+  };
+
+  // Function to format port label with one word per line without truncation
+  const formatLabelOneWordPerLine = (label: string) => {
+    // Split by spaces and join with line breaks
+    return label.split(' ').map((word, i) => (
+      <div key={i} className="text-center" style={{ fontSize: '0.65rem', lineHeight: '1.1' }}>{word}</div>
+    ));
+  };
+
+  // Count active ports
+  const activePorts = {
+    inputs: inputs.filter(port => port.isActive !== false),
+    outputs: outputs.filter(port => port.isActive !== false)
+  };
   
-    // Function to format port label with one word per line without truncation
-    const formatLabelOneWordPerLine = (label: string) => {
-      // Split by spaces and join with line breaks
-      return label.split(' ').map((word, i) => (
-        <div key={i} className="text-center" style={{ fontSize: '0.65rem', lineHeight: '1.1' }}>{word}</div>
-      ));
-    };
-  
-    // Count active ports
-    const activePorts = {
-      inputs: inputs.filter(port => port.isActive !== false),
-      outputs: outputs.filter(port => port.isActive !== false)
+  // Calculate port width allocations - ensure sufficient spacing
+  const inputPortWidth = Math.max(90, calculatePortSpacing(activePorts.inputs.length));
+  const outputPortWidth = Math.max(90, calculatePortSpacing(activePorts.outputs.length));
+
+  return (
+    <>
+      {/* Input Ports with increased spacing */}
+      <div className="absolute -top-1.5 left-0 right-0 flex justify-evenly items-center px-4">
+        {inputs.map((port, index) => {
+          const handleStatus = getHandleStatus(port, true);
+          const isActive = handleStatus !== 'inactive';
+          const isList = port.isListType === true;
+          
+          // Skip rendering inactive ports completely
+          if (!isActive) return null;
+          
+          return (
+            <div
+              key={`${port.id}-${index}`}
+              className="relative group"
+              style={{
+                width: `${inputPortWidth}px`,
+                height: "24px",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                margin: "0 20px" // Add extra margin for spacing
+              }}
+            >
+              {/* Label with no truncation */}
+              <div className="absolute top-0 transform -translate-y-full -translate-x-1/2 left-1/2">
+                <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
+                     style={{ 
+                       marginBottom: '7px', 
+                       minWidth: '50px',
+                       maxWidth: '70px',
+                       width: 'auto'
+                     }}
+                >
+                  {formatLabelOneWordPerLine(port.label)}
+                  
+                  {/* Simple list indicator */}
+                  {isActive && isList && (
+                    <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
+                        <rect x="8" y="8" width="8" height="2" fill="currentColor" />
+                        <rect x="8" y="12" width="8" height="2" fill="currentColor" />
+                        <rect x="8" y="16" width="8" height="2" fill="currentColor" />
+                      </svg>
+                      List
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <Handle
+                type="target"
+                position={Position.Top}
+                id={port.id}
+                isConnectable={isConnectable}
+                style={{
+                  minWidth: '9px',
+                  minHeight: '9px',
+                  width: '9px',
+                  height: '9px',
+                  top: 0
+                }}
+                className={cn(
+                  "rounded-full border-2 transition-colors",
+                  handleStatus === 'active-data' ?
+                    "!bg-blue-500 !border-black !shadow-sm !shadow-blue-300" :
+                    "!bg-white !border-black"
+                )}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Output Ports with increased spacing */}
+      <div className="absolute -bottom-1.5 left-0 right-0 flex justify-evenly items-center px-4">
+        {outputs.map((port, index) => {
+          const handleStatus = getHandleStatus(port, false);
+          const isActive = handleStatus !== 'inactive';
+          const isList = port.isListType === true;
+          
+          // Skip rendering inactive ports completely
+          if (!isActive) return null;
+          
+          return (
+            <div
+              key={`${port.id}-${index}`}
+              className="relative group"
+              style={{
+                width: `${outputPortWidth}px`,
+                height: "24px",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                margin: "0 38px" // Add extra margin for spacing
+              }}
+            >
+              {/* Label with no truncation */}
+              <div className="absolute bottom-0 transform translate-y-full -translate-x-1/2 left-1/2">
+                <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
+                     style={{ 
+                       marginTop: '7px', 
+                       minWidth: '50px',
+                       maxWidth: '70px',
+                       width: 'auto'
+                     }}
+                >
+                  {formatLabelOneWordPerLine(port.label)}
+                  
+                  {/* Simple list indicator */}
+                  {isActive && isList && (
+                    <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
+                        <rect x="8" y="8" width="8" height="2" fill="currentColor" />
+                        <rect x="8" y="12" width="8" height="2" fill="currentColor" />
+                        <rect x="8" y="16" width="8" height="2" fill="currentColor" />
+                      </svg>
+                      List
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <Handle
+                type="source"
+                position={Position.Bottom}
+                id={port.id}
+                isConnectable={isConnectable}
+                style={{
+                  minWidth: '9px',
+                  minHeight: '9px',
+                  width: '9px',
+                  height: '9px',
+                  bottom: 0
+                }}
+                className={cn(
+                  "rounded-full border-2 transition-colors",
+                  handleStatus === 'active-data' ?
+                    "!bg-green-500 !border-black !shadow-sm !shadow-green-300" :
+                    "!bg-white !border-black"
+                )}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+};
+
+// Calculate and update the node width when ports change
+React.useEffect(() => {
+  if (config.action && actions[config.action]?.ports) {
+    const { inputs = [], outputs = [] } = 
+      config.ports || actions[config.action].ports;
+    
+    // Count active ports only
+    const getActivePorts = (ports) => {
+      return ports.filter(port => port.isActive !== false);
     };
     
-    // Calculate port width allocations
-    const inputPortWidth = calculatePortSpacing(activePorts.inputs.length);
-    const outputPortWidth = calculatePortSpacing(activePorts.outputs.length);
+    const activePorts = {
+      inputs: getActivePorts(inputs),
+      outputs: getActivePorts(outputs)
+    };
+    
+    // Calculate width based on active ports - ensure sufficient space for labels
+    const inputPortWidth = Math.max(90, calculatePortSpacing(activePorts.inputs.length));
+    const outputPortWidth = Math.max(90, calculatePortSpacing(activePorts.outputs.length));
+    
+    // Determine which set of ports needs more width
+    const maxPortCount = Math.max(activePorts.inputs.length, activePorts.outputs.length);
+    const portWidth = Math.max(inputPortWidth, outputPortWidth);
+    
+    // Add extra padding (80px) plus enough space for all ports with their margins
+    const calculatedWidth = Math.max(320, (maxPortCount * portWidth) + (maxPortCount * 76) + 80);
+    
+    // Set the new width with a slight delay to allow for animation
+    setNodeWidth(calculatedWidth);
+  }
+}, [config.action, config.ports, config.selectedColumns]);
+
+// Helper function to calculate port spacing based on port count
+// const calculatePortSpacing = (portCount) => {
+//   if (portCount <= 0) return 90; // Default width for no ports
   
-    return (
-      <>
-        {/* Input Ports with increased spacing */}
-        <div className="absolute -top-1.5 left-0 right-0 flex justify-evenly items-center px-4">
-          {inputs.map((port, index) => {
-            const handleStatus = getHandleStatus(port, true);
-            const isActive = handleStatus !== 'inactive';
-            const isList = port.isListType === true; // Get directly from port definition
-            
-            return (
-              <div
-                key={`${port.id}-${index}`}
-                className={`relative ${isActive ? 'group' : 'pointer-events-none'}`}
-                style={{
-                  width: `${inputPortWidth}px`,
-                  height: "24px",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  ...(isActive ? { margin: "0 38px" } : {})
-                }}
-              >
-                {/* Label with no truncation */}
-                <div 
-                  className={`absolute top-0 transform -translate-y-full -translate-x-1/2 left-1/2 ${!isActive ? 'opacity-0' : ''}`}
-                >
-                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
-                       style={{ 
-                         marginBottom: '7px', 
-                         minWidth: '50px',
-                         maxWidth: '70px',
-                         width: 'auto'
-                       }}
-                  >
-                    {formatLabelOneWordPerLine(port.label)}
-                    
-                    {/* Simple list indicator */}
-                    {isActive && isList && (
-                      <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-                          <rect x="8" y="8" width="8" height="2" fill="currentColor" />
-                          <rect x="8" y="12" width="8" height="2" fill="currentColor" />
-                          <rect x="8" y="16" width="8" height="2" fill="currentColor" />
-                        </svg>
-                        List
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <Handle
-                  type="target"
-                  position={Position.Top}
-                  id={port.id}
-                  isConnectable={isConnectable && isActive}
-                  style={{
-                    minWidth: '9px',
-                    minHeight: '9px',
-                    width: '9px',
-                    height: '9px',
-                    top: 0
-                  }}
-                  className={cn(
-                    "rounded-full border-2 transition-colors",
-                    handleStatus === 'inactive' ? 
-                      "!bg-transparent !border-transparent opacity-0" :
-                    handleStatus === 'active-data' ?
-                      "!bg-blue-500 !border-black !shadow-sm !shadow-blue-300" :
-                      "!bg-white !border-black"
-                  )}
-                />
-              </div>
-            );
-          })}
-        </div>
+//   const baseWidth = 90;
+//   const minWidth = 80;
   
-        {/* Output Ports with increased spacing */}
-        <div className="absolute -bottom-1.5 left-0 right-0 flex justify-evenly items-center px-4">
-          {outputs.map((port, index) => {
-            const handleStatus = getHandleStatus(port, false);
-            const isActive = handleStatus !== 'inactive';
-            const isList = port.isListType === true; // Get directly from port definition
-            
-            return (
-              <div
-                key={`${port.id}-${index}`}
-                className={`relative ${isActive ? 'group' : 'pointer-events-none'}`}
-                style={{
-                  width: `${outputPortWidth}px`,
-                  height: "24px",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  ...(isActive ? { margin: "0 38px" } : {})
-                }}
-              >
-                {/* Label with no truncation */}
-                <div 
-                  className={`absolute bottom-0 transform translate-y-full -translate-x-1/2 left-1/2 ${!isActive ? 'opacity-0' : ''}`}
-                >
-                  <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
-                       style={{ 
-                         marginTop: '7px', 
-                         minWidth: '50px',
-                         maxWidth: '70px',
-                         width: 'auto'
-                       }}
-                  >
-                    {formatLabelOneWordPerLine(port.label)}
-                    
-                    {/* Simple list indicator */}
-                    {isActive && isList && (
-                      <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-                          <rect x="8" y="8" width="8" height="2" fill="currentColor" />
-                          <rect x="8" y="12" width="8" height="2" fill="currentColor" />
-                          <rect x="8" y="16" width="8" height="2" fill="currentColor" />
-                        </svg>
-                        List
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <Handle
-                  type="source"
-                  position={Position.Bottom}
-                  id={port.id}
-                  isConnectable={isConnectable && isActive}
-                  style={{
-                    minWidth: '9px',
-                    minHeight: '9px',
-                    width: '9px',
-                    height: '9px',
-                    bottom: 0
-                  }}
-                  className={cn(
-                    "rounded-full border-2 transition-colors",
-                    handleStatus === 'inactive' ? 
-                      "!bg-transparent !border-transparent opacity-0" :
-                    handleStatus === 'active-data' ?
-                      "!bg-green-500 !border-black !shadow-sm !shadow-green-300" :
-                      "!bg-white !border-black"
-                  )}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </>
-    );
-  };
+//   // For more ports, reduce the width slightly but maintain minimum
+//   const reductionFactor = Math.min(1, 6 / portCount);
+//   return Math.max(minWidth, baseWidth * reductionFactor);
+// };
 
   const renderHeader = (actionName?: string) => (
     <div className="relative">
