@@ -121,41 +121,204 @@ export class SheetReader extends AbstractExecutor {
       throw new Error('No columns selected for writing');
     }
     
-    // Gather data for each column from inputs or config
-    const columnData: Record<string, any[]> = {};
-    
-    // Example implementation - for each selected column, check for input data
-    for (const column of config.selectedColumns) {
-      const inputHandle = `input_${column}`;
+    try {
+      // Get sheet metadata
+      const sheetMetadataResponse = await this.makeAuthorizedRequest(
+        'sheets',
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        { method: 'GET' }
+      );
       
-      // Get data from input if available
-      if (context.inputData && context.inputData[inputHandle]) {
-        // If input data is an array, use it directly
-        if (Array.isArray(context.inputData[inputHandle])) {
-          columnData[column] = context.inputData[inputHandle];
+      const sheetMetadata = await sheetMetadataResponse.json();
+      
+      // Determine which sheet to write to
+      const targetSheetName = config.sheetName || sheetMetadata.sheets[0].properties.title;
+      const targetSheet = sheetMetadata.sheets.find((sheet: any) => 
+        sheet.properties.title === targetSheetName
+      );
+      
+      if (!targetSheet) {
+        throw new Error(`Sheet "${targetSheetName}" not found in the spreadsheet`);
+      }
+      
+      const sheetId = targetSheet.properties.sheetId;
+      
+      // Get existing data
+      const dataResponse = await this.makeAuthorizedRequest(
+        'sheets',
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${targetSheetName}`,
+        { method: 'GET' }
+      );
+      
+      const existingData = await dataResponse.json();
+      
+      if (!existingData.values || existingData.values.length === 0) {
+        throw new Error('Sheet is empty or has no data');
+      }
+      
+      const allRows = existingData.values;
+      const headers = allRows[0];
+      
+      // Map column names to their indices
+      const columnIndices: { [columnName: string]: number } = {};
+      for (const column of config.selectedColumns) {
+        const index = headers.indexOf(column);
+        if (index !== -1) {
+          columnIndices[column] = index;
         } else {
-          // If it's a single value, wrap it in an array
-          columnData[column] = [context.inputData[inputHandle]];
+          console.warn(`Column "${column}" not found in sheet headers`);
         }
       }
-      // Otherwise, use placeholder data for now
-      else {
-        columnData[column] = ["Sample data"];
+      
+      // Process input data
+      const columnData: { [columnName: string]: any[] } = {};
+      
+      for (const column of config.selectedColumns) {
+        const inputHandle = `input_${column}`;
+        
+        let inputValue = context.inputData && context.inputData[inputHandle] !== undefined 
+          ? context.inputData[inputHandle] 
+          : null;
+        
+        // Normalize to array
+        if (inputValue === null || inputValue === undefined) {
+          columnData[column] = [];
+        } else if (Array.isArray(inputValue)) {
+          columnData[column] = inputValue;
+        } else {
+          columnData[column] = [inputValue];
+        }
       }
+      
+      // Find the maximum row count
+      const maxRows = Math.max(
+        ...Object.values(columnData).map(arr => arr.length),
+        0
+      );
+      
+      if (maxRows === 0) {
+        return {
+          success: true,
+          data: {
+            sheetLink: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`,
+            message: 'No data to write'
+          }
+        };
+      }
+      
+      // Smart row detection - find rows that already have data
+      const dataRows = allRows.slice(1); // Skip header row
+      const nonEmptyRows = dataRows.filter(row => row.some(cell => cell !== '' && cell !== null));
+      const nonEmptyRowCount = nonEmptyRows.length;
+      
+      // Determine if we should update existing rows or append new ones
+      const isSingleValueUpdate = maxRows === 1 && Object.values(columnData).every(arr => arr.length <= 1);
+      const shouldUpdateExisting = isSingleValueUpdate && nonEmptyRowCount > 0;
+      
+      // Starting row index (0-based) - start after header (row index 1)
+      // If updating existing, use row 1, otherwise start after the last non-empty row
+      const startRowIndex = shouldUpdateExisting ? 1 : Math.max(1, nonEmptyRowCount + 1);
+      
+      // Prepare batch update requests
+      const requests = [];
+      
+      // For each column with data
+      for (const column of config.selectedColumns) {
+        const columnIndex = columnIndices[column];
+        if (columnIndex === undefined) continue; // Skip columns not found in sheet
+        
+        const values = columnData[column];
+        if (!values || values.length === 0) continue; // Skip empty columns
+        
+        // For each row of data in this column
+        for (let i = 0; i < values.length; i++) {
+          const rowIndex = startRowIndex + i;
+          const value = values[i];
+          
+          // Create the appropriate value object based on data type
+          let userEnteredValue: any = {};
+          if (value === null || value === undefined) {
+            userEnteredValue.stringValue = "";
+          } else if (typeof value === 'number') {
+            userEnteredValue.numberValue = value;
+          } else if (typeof value === 'boolean') {
+            userEnteredValue.boolValue = value;
+          } else {
+            userEnteredValue.stringValue = String(value);
+          }
+          
+          requests.push({
+            updateCells: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: rowIndex,
+                endRowIndex: rowIndex + 1,
+                startColumnIndex: columnIndex,
+                endColumnIndex: columnIndex + 1
+              },
+              rows: [
+                {
+                  values: [
+                    { userEnteredValue }
+                  ]
+                }
+              ],
+              fields: 'userEnteredValue'
+            }
+          });
+        }
+      }
+      
+      if (requests.length === 0) {
+        return {
+          success: true,
+          data: {
+            sheetLink: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`,
+            message: 'No data to write'
+          }
+        };
+      }
+      
+      // Execute batch update
+      const updateResponse = await this.makeAuthorizedRequest(
+        'sheets',
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            requests
+          })
+        }
+      );
+      
+      await updateResponse.json();
+      
+      return {
+        success: true,
+        data: {
+          sheetLink: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`,
+          output_fileUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`,
+          updatedCells: requests.length,
+          updatedRows: shouldUpdateExisting ? 1 : maxRows,
+          mode: shouldUpdateExisting ? 'updated existing row' : 'appended new rows',
+          message: shouldUpdateExisting 
+            ? `Updated existing data in row ${startRowIndex + 1}` 
+            : `Added ${maxRows} new row(s) of data`
+        }
+      };
+    } catch (error) {
+      console.error('Error writing to sheet:', error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Failed to write to sheet',
+          details: error
+        }
+      };
     }
-    
-    // Generate sheet link
-    const sheetLink = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
-    
-    return {
-      success: true,
-      data: {
-        sheetLink,
-        columnData,
-        message: 'Write Sheet executed with input data'
-      }
-    };
   }
+
+  
   
   private async executeUpdateSheet(context: ExecutorContext, config: SheetsConfig): Promise<ExecutionResult> {
     const spreadsheetId = config.spreadsheetId;
@@ -179,7 +342,7 @@ export class SheetReader extends AbstractExecutor {
     if (!searchValue) {
       throw new Error('Search value is required');
     }
-
+  
     if (!config.searchColumn) {
       throw new Error('Search column is required');
     }
@@ -188,32 +351,165 @@ export class SheetReader extends AbstractExecutor {
       throw new Error('Updater mode is required');
     }
     
-    // Gather data for each column to update
-    const updateData: Record<string, any> = {};
-    
-    // For each selected column, check for input data
-    for (const column of config.selectedColumns) {
-      const inputHandle = `input_${column}`;
+    try {
+      // First, get the sheet metadata
+      const sheetMetadataResponse = await this.makeAuthorizedRequest(
+        'sheets',
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        { method: 'GET' }
+      );
       
-      // Get data from input if available
-      if (context.inputData && context.inputData[inputHandle] !== undefined) {
-        updateData[column] = context.inputData[inputHandle];
+      const sheetMetadata = await sheetMetadataResponse.json();
+      
+      // Determine which sheet to use (default to first sheet)
+      const targetSheetName = config.sheetName || sheetMetadata.sheets[0].properties.title;
+      const targetSheet = sheetMetadata.sheets.find((sheet: any) => 
+        sheet.properties.title === targetSheetName
+      );
+      
+      if (!targetSheet) {
+        throw new Error(`Sheet "${targetSheetName}" not found in the spreadsheet`);
       }
+      
+      const sheetId = targetSheet.properties.sheetId;
+      
+      // Get the sheet data to find rows to update
+      const dataResponse = await this.makeAuthorizedRequest(
+        'sheets',
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${targetSheetName}`,
+        { method: 'GET' }
+      );
+      
+      const sheetData = await dataResponse.json();
+      
+      if (!sheetData.values || sheetData.values.length <= 1) {
+        throw new Error('Sheet has no data or only headers');
+      }
+      
+      const headers = sheetData.values[0];
+      const searchColumnIndex = headers.indexOf(config.searchColumn);
+      
+      if (searchColumnIndex === -1) {
+        throw new Error(`Search column "${config.searchColumn}" not found in sheet headers`);
+      }
+      
+      // Find rows to update
+      const rowsToUpdate: number[] = [];
+      sheetData.values.forEach((row: any[], index: number) => {
+        if (index === 0) return; // Skip header row
+        
+        if (row[searchColumnIndex] === searchValue) {
+          rowsToUpdate.push(index);
+        }
+      });
+      
+      if (rowsToUpdate.length === 0) {
+        return {
+          success: false,
+          error: {
+            message: `No rows found with value "${searchValue}" in column "${config.searchColumn}"`,
+          },
+          data: {
+            sheetLink: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`,
+            message: `No rows matched the search criteria`
+          }
+        };
+      }
+      
+      // If mode is 'single' but multiple matches found, just update the first one
+      if (config.updaterMode === 'single' && rowsToUpdate.length > 1) {
+        rowsToUpdate.splice(1); // Keep only the first row
+      }
+      
+      // Gather data for each column to update
+      const updateData: Record<string, any> = {};
+      
+      // For each selected column, check for input data
+      for (const column of config.selectedColumns) {
+        if (column === config.searchColumn) continue; // Skip the search column
+        
+        const inputHandle = `input_${column}`;
+        
+        // Get data from input if available
+        if (context.inputData && context.inputData[inputHandle] !== undefined) {
+          updateData[column] = context.inputData[inputHandle];
+        }
+      }
+      
+      if (Object.keys(updateData).length === 0) {
+        throw new Error('No update data provided');
+      }
+      
+      // Prepare batch update request
+      const requests = [];
+      
+      for (const rowIndex of rowsToUpdate) {
+        for (const [column, value] of Object.entries(updateData)) {
+          const columnIndex = headers.indexOf(column);
+          if (columnIndex === -1) continue; // Skip if column not found
+          
+          requests.push({
+            updateCells: {
+              range: {
+                sheetId,
+                startRowIndex: rowIndex,
+                endRowIndex: rowIndex + 1,
+                startColumnIndex: columnIndex,
+                endColumnIndex: columnIndex + 1
+              },
+              rows: [
+                {
+                  values: [
+                    {
+                      userEnteredValue: {
+                        // Handle different value types
+                        [typeof value === 'number' ? 'numberValue' : 
+                          typeof value === 'boolean' ? 'boolValue' : 'stringValue']: value
+                      }
+                    }
+                  ]
+                }
+              ],
+              fields: 'userEnteredValue'
+            }
+          });
+        }
+      }
+      
+      // Execute batch update
+      const updateResponse = await this.makeAuthorizedRequest(
+        'sheets',
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            requests
+          })
+        }
+      );
+      
+      const updateResult = await updateResponse.json();
+      
+      // Generate sheet link
+      const sheetLink = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`;
+      
+      return {
+        success: true,
+        data: {
+          sheetLink,
+          updatedRows: rowsToUpdate.length,
+          message: `Successfully updated ${rowsToUpdate.length} row(s)`
+        }
+      };
+    } catch (error) {
+      console.error('Error updating sheet:', error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Failed to update sheet',
+          details: error
+        }
+      };
     }
-    
-    // Generate sheet link
-    const sheetLink = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
-    
-    return {
-      success: true,
-      data: {
-        sheetLink,
-        searchValue,
-        searchColumn: config.searchColumn,
-        updateData,
-        mode: config.updaterMode,
-        message: `Update Sheet executed with ${Object.keys(updateData).length} values to update`
-      }
-    };
   }
 }
