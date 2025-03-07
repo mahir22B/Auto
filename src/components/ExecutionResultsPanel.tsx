@@ -94,6 +94,33 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
 
+  const renderGDocsResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to read document"}
+        </div>
+      );
+    }
+
+    const { title, content } = result.data;
+
+    return (
+      <div className="space-y-4">
+        <div className="p-2">
+          <div className="text-lg font-medium text-blue-600 mb-2">
+            {title || "Untitled Document"}
+          </div>
+          <div className="bg-gray-50 p-4 rounded-md border border-gray-200 max-h-96 overflow-auto">
+            <div className="whitespace-pre-wrap">
+              {content || "No content found"}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
     switch (node.type) {
       case "gmail":
@@ -128,10 +155,13 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(result.data.output_fileUrl)
+                          navigator.clipboard
+                            .writeText(result.data.output_fileUrl)
                             .then(() => {
                               // Optionally show a brief "Copied!" message
-                              const button = document.getElementById(`copy-btn-${nodeId}`);
+                              const button = document.getElementById(
+                                `copy-btn-${nodeId}`
+                              );
                               if (button) {
                                 const originalText = button.textContent;
                                 button.textContent = "Copied!";
@@ -140,16 +170,34 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                                 }, 2000);
                               }
                             })
-                            .catch(err => {
-                              console.error('Could not copy text: ', err);
+                            .catch((err) => {
+                              console.error("Could not copy text: ", err);
                             });
                         }}
                         id={`copy-btn-${nodeId}`}
                         className="flex items-center gap-1 text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-copy">
-                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="lucide lucide-copy"
+                        >
+                          <rect
+                            width="14"
+                            height="14"
+                            x="8"
+                            y="8"
+                            rx="2"
+                            ry="2"
+                          />
+                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                         </svg>
                         Copy URL
                       </button>
@@ -175,7 +223,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                 </div>
               )}
             </div>
-          )
+          );
         } else if (node.data.config.action === "READ_FILE") {
           return (
             <div className="p-2">
@@ -216,7 +264,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                     <div className="text-sm">Files:</div>
                     <ul className="list-disc pl-5 text-sm">
                       {result.data.output_files
-                        .slice(0, 10)
+                        .slice(0, 50)
                         .map((file: any, index: number) => (
                           <li key={index} className="text-gray-700">
                             {file.name}
@@ -232,9 +280,9 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                             )}
                           </li>
                         ))}
-                      {result.data.output_files.length > 10 && (
+                      {result.data.output_files.length > 50 && (
                         <li className="text-gray-500 italic">
-                          ...and {result.data.output_files.length - 10} more
+                          ...and {result.data.output_files.length - 50} more
                           files
                         </li>
                       )}
@@ -274,7 +322,98 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
           </div>
         );
 
-      // Add cases for other node types as needed
+      case "gdocs":
+        if (node.data.config.action === "WRITE_DOCUMENT") {
+          return (
+            <div className="p-2">
+              {result.success ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-green-600">Success</span>
+                  </div>
+                  {result.data?.output_docUrl || result.data?.output_fileUrl ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard
+                            .writeText(
+                              result.data.output_docUrl ||
+                                result.data.output_fileUrl
+                            )
+                            .then(() => {
+                              // Optionally show a brief "Copied!" message
+                              const button = document.getElementById(
+                                `copy-btn-${nodeId}`
+                              );
+                              if (button) {
+                                const originalText = button.textContent;
+                                button.textContent = "Copied!";
+                                setTimeout(() => {
+                                  button.textContent = originalText;
+                                }, 2000);
+                              }
+                            })
+                            .catch((err) => {
+                              console.error("Could not copy text: ", err);
+                            });
+                        }}
+                        id={`copy-btn-${nodeId}`}
+                        className="flex items-center gap-1 text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="lucide lucide-copy"
+                        >
+                          <rect
+                            width="14"
+                            height="14"
+                            x="8"
+                            y="8"
+                            rx="2"
+                            ry="2"
+                          />
+                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </svg>
+                        Copy URL
+                      </button>
+
+                      <a
+                        href={
+                          result.data.output_docUrl ||
+                          result.data.output_fileUrl
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-blue-500 hover:text-blue-700"
+                      >
+                        <span>Open in Google Docs</span>
+                        <ExternalLink className="ml-1 h-4 w-4" />
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-yellow-600">
+                      Unable to generate document URL
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-red-500">
+                  {result.error?.message || "Failed to create document"}
+                </div>
+              )}
+            </div>
+          );
+        } else {
+          return renderGDocsResults(nodeId, result);
+        }
     }
 
     // Default fallback renderer
@@ -346,6 +485,16 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                       <img
                         src="/icons/gsheets.svg"
                         alt="Google Sheets"
+                        width="24"
+                        height="24"
+                      />
+                    </div>
+                  )}
+                  {node.type === "gdocs" && (
+                    <div className="mr-3 text-blue-600">
+                      <img
+                        src="/icons/gdocs.svg"
+                        alt="Google Docs"
                         width="24"
                         height="24"
                       />

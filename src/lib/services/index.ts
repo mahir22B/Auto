@@ -1,6 +1,7 @@
 import { GMAIL_ACTIONS } from "../gmail/actions";
 import { GDRIVE_ACTIONS } from "../gdrive/actions";
 import { SHEETS_ACTIONS } from "../sheets/actions";
+import { GDOCS_ACTIONS } from "../gdocs/actions";
 
 export interface Port {
   id: string;
@@ -47,7 +48,6 @@ export interface ActionConfig {
   getPortListTypes?: (config: any) => Record<string, boolean>;
 }
 
-
 export interface ServiceConfig {
   id: string;
   name: string;
@@ -91,8 +91,23 @@ export const SERVICES: Record<string, ServiceConfig> = {
     authScopes: [
       "https://www.googleapis.com/auth/spreadsheets",
       "https://www.googleapis.com/auth/spreadsheets.readonly",
-      'https://www.googleapis.com/auth/drive.readonly', // Add this
-      'https://www.googleapis.com/auth/drive.file' 
+      "https://www.googleapis.com/auth/drive.readonly", // Add this
+      "https://www.googleapis.com/auth/drive.file",
+    ],
+  },
+  gdocs: {
+    id: "gdocs",
+    name: "Google Docs",
+    description: "Read and write Google Docs",
+    icon: "/icons/gdocs.svg",
+    actions: GDOCS_ACTIONS,
+    authScopes: [
+      "https://www.googleapis.com/auth/documents",
+      "https://www.googleapis.com/auth/documents.readonly",
+      "https://www.googleapis.com/auth/drive", // Full drive access
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive.metadata.readonly"
     ],
   },
 };

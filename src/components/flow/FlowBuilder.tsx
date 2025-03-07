@@ -25,7 +25,8 @@ import { areTypesCompatible } from "@/lib/types/PortTypes";
 const nodeTypes = {
   gdrive: FlowNode,
   gmail: FlowNode,
-  sheets: FlowNode
+  sheets: FlowNode,
+  gdocs:FlowNode
 };
 
 const edgeTypes = {
