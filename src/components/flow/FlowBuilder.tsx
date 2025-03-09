@@ -26,7 +26,8 @@ const nodeTypes = {
   gdrive: FlowNode,
   gmail: FlowNode,
   sheets: FlowNode,
-  gdocs:FlowNode
+  gdocs:FlowNode,
+  slack:FlowNode
 };
 
 const edgeTypes = {

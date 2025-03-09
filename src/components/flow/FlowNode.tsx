@@ -1,5 +1,5 @@
 // src/components/flow/FlowNode.tsx
-import React from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Handle, Position } from "reactflow";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import GooglePicker from "../GooglePickerComponent";
+import SlackFileUploader from "../SlackFileUploader";
 
 interface PortTypeInfo {
   nodeId: string;
@@ -50,18 +51,43 @@ interface FlowNodeProps {
 }
 
 const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
-  const [config, setConfig] = React.useState(data.config);
-  const [showAuthPrompt, setShowAuthPrompt] = React.useState(false);
-  const [nodeWidth, setNodeWidth] = React.useState(320); // Default width
+  const [config, setConfig] = useState(data.config);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [nodeWidth, setNodeWidth] = useState(320); // Default width
+
+  // Add state for dynamic options loading
+  const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>({});
+  const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({});
 
   const serviceConfig = SERVICES[data.service];
   const { name, icon, actions } = serviceConfig;
 
   // Update local config when data.config changes
-  React.useEffect(() => {
+  useEffect(() => {
     console.log("Data config changed:", data.config);
     setConfig(data.config);
   }, [data.config]);
+
+  // Function to handle dynamic options loading
+  const handleOptionLoad = useCallback(async (field: any) => {
+    if (!field.loadOptions || dynamicOptions[field.name]) return;
+    
+    setLoadingOptions(prev => ({ ...prev, [field.name]: true }));
+    
+    try {
+      // Call the loadOptions function with the necessary context
+      const options = await field.loadOptions({
+        authState: data.authState,
+        config
+      });
+      
+      setDynamicOptions(prev => ({ ...prev, [field.name]: options }));
+    } catch (error) {
+      console.error(`Error loading options for ${field.name}:`, error);
+    } finally {
+      setLoadingOptions(prev => ({ ...prev, [field.name]: false }));
+    }
+  }, [data.authState, config, dynamicOptions]);
 
   // Calculate port spacing based on the number of ports
   const calculatePortSpacing = (portCount) => {
@@ -72,32 +98,35 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   };
 
   // Calculate and update the node width when ports change
-  React.useEffect(() => {
+  useEffect(() => {
     if (config.action && actions[config.action]?.ports) {
-      const { inputs = [], outputs = [] } = 
+      const { inputs = [], outputs = [] } =
         config.ports || actions[config.action].ports;
-      
+
       // Count active ports only
       const getActivePorts = (ports) => {
-        return ports.filter(port => port.isActive !== false);
+        return ports.filter((port) => port.isActive !== false);
       };
-      
+
       const activePorts = {
         inputs: getActivePorts(inputs),
-        outputs: getActivePorts(outputs)
+        outputs: getActivePorts(outputs),
       };
-      
+
       // Calculate width based on active ports
       const inputPortWidth = calculatePortSpacing(activePorts.inputs.length);
       const outputPortWidth = calculatePortSpacing(activePorts.outputs.length);
-      
+
       // Determine which set of ports needs more width
-      const maxPortCount = Math.max(activePorts.inputs.length, activePorts.outputs.length);
+      const maxPortCount = Math.max(
+        activePorts.inputs.length,
+        activePorts.outputs.length
+      );
       const portWidth = Math.max(inputPortWidth, outputPortWidth);
-      
+
       // Calculate the node width with padding
-      const calculatedWidth = Math.max(320, (maxPortCount * portWidth) + 80);
-      
+      const calculatedWidth = Math.max(320, maxPortCount * portWidth + 80);
+
       // Set the new width with a slight delay to allow for animation
       setNodeWidth(calculatedWidth);
     }
@@ -107,55 +136,69 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     const newConfig = { ...config, ...updates };
     console.log("Updating config:", newConfig);
     setConfig(newConfig);
-    
+
     // Check if we need to clean up connections from removed ports
     if (data.removePortConnections && config.ports && newConfig.ports) {
       // For Gmail email reader, check if emailInformation was changed
-      if (data.service === 'gmail' && config.action === 'READ_UNREAD' && 
-          updates.emailInformation) {
-        
+      if (
+        data.service === "gmail" &&
+        config.action === "READ_UNREAD" &&
+        updates.emailInformation
+      ) {
         // Find ports that are removed (were active but are now inactive)
         const oldEmailInfo = config.emailInformation || [];
         const newEmailInfo = updates.emailInformation || [];
-        
+
         // Find email information types that were removed
-        const removedInfo = oldEmailInfo.filter(info => !newEmailInfo.includes(info));
-        
+        const removedInfo = oldEmailInfo.filter(
+          (info) => !newEmailInfo.includes(info)
+        );
+
         // Clean up connections for removed ports
-        removedInfo.forEach(info => {
+        removedInfo.forEach((info) => {
           data.removePortConnections!(`output_${info}`);
         });
       }
-      
+
       // For Sheets reader, check if selectedColumns was changed
-      if (data.service === 'sheets' && 
-          (config.action === 'READ_SHEET' || config.action === 'WRITE_SHEET' || config.action === 'UPDATE_SHEET') && 
-          updates.selectedColumns) {
-        
+      if (
+        data.service === "sheets" &&
+        (config.action === "READ_SHEET" ||
+          config.action === "WRITE_SHEET" ||
+          config.action === "UPDATE_SHEET") &&
+        updates.selectedColumns
+      ) {
         // Find columns that were removed
         const oldSelectedColumns = config.selectedColumns || [];
         const newSelectedColumns = updates.selectedColumns || [];
-        
+
         // Find columns that were removed
-        const removedColumns = oldSelectedColumns.filter(col => !newSelectedColumns.includes(col));
-        
+        const removedColumns = oldSelectedColumns.filter(
+          (col) => !newSelectedColumns.includes(col)
+        );
+
         // Clean up connections for removed ports (either input or output depending on the action)
-        removedColumns.forEach(column => {
-          if (config.action === 'READ_SHEET') {
+        removedColumns.forEach((column) => {
+          if (config.action === "READ_SHEET") {
             data.removePortConnections!(`output_${column}`);
-          } else if (config.action === 'WRITE_SHEET' || config.action === 'UPDATE_SHEET') {
+          } else if (
+            config.action === "WRITE_SHEET" ||
+            config.action === "UPDATE_SHEET"
+          ) {
             data.removePortConnections!(`input_${column}`);
           }
         });
       }
     }
-    
+
     // Update ports when relevant selections change
     if (
-      (updates.selectedColumns && data.service === 'sheets') || 
-      (updates.emailInformation && data.service === 'gmail') ||
+      (updates.selectedColumns && data.service === "sheets") ||
+      (updates.emailInformation && data.service === "gmail") ||
       // Add this condition to update ports when maxResults changes for Gmail
-      (updates.maxResults !== undefined && data.service === 'gmail' && config.action === 'READ_UNREAD')
+      (updates.maxResults !== undefined &&
+        data.service === "gmail" &&
+        config.action === "READ_UNREAD")
     ) {
       if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
         const ports = actions[newConfig.action].getDynamicPorts(newConfig);
@@ -166,7 +209,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         return;
       }
     }
-    
+
     data.updateNodeConfig(newConfig);
   };
 
@@ -187,7 +230,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   };
 
   // Handle post-auth configuration
-  React.useEffect(() => {
+  useEffect(() => {
     if (data.authState.isAuthenticated && showAuthPrompt) {
       const pendingAction = localStorage.getItem(
         `${data.service}_pending_action`
@@ -209,13 +252,13 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
 
   // Update ports when configuration changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (
-      (config.action && actions[config.action]?.getDynamicPorts) && 
-      (
-        (data.service === 'sheets' && config.selectedColumns) ||
-        (data.service === 'gmail' && (config.emailInformation || config.maxResults !== undefined))
-      )
+      config.action &&
+      actions[config.action]?.getDynamicPorts &&
+      ((data.service === "sheets" && config.selectedColumns) ||
+        (data.service === "gmail" &&
+          (config.emailInformation || config.maxResults !== undefined)))
     ) {
       const ports = actions[config.action].getDynamicPorts(config);
       data.updateNodeConfig({
@@ -223,243 +266,327 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         ports,
       });
     }
-  }, [config.selectedColumns, config.emailInformation, config.maxResults, config.action]);
+  }, [
+    config.selectedColumns,
+    config.emailInformation,
+    config.maxResults,
+    config.action,
+  ]);
 
-// In FlowNode.tsx
+  const renderPorts = () => {
+    if (!config.action || !actions[config.action]?.ports) return null;
 
-const renderPorts = () => {
-  if (!config.action || !actions[config.action]?.ports) return null;
-
-  // Get all available ports from the action configuration or node config
-  const { inputs = [], outputs = [] } = config.ports || actions[config.action].ports;
-
-  // Function to get handle status for visual representation
-  const getHandleStatus = (port: any, isInput: boolean) => {
-    // Check if there's an execution state for this node
-    if (data.executionState?.success) {
-      // For outputs, check if there's actual data available
-      if (!isInput && data.executionState.data && data.executionState.data[port.id] !== undefined) {
-        return 'active-data'; // This output has actual data flowing through it
-      }
-    }
-    
-    return port.isActive ? 'active' : 'inactive';
-  };
-
-  // Function to format port label with one word per line without truncation
-  const formatLabelOneWordPerLine = (label: string) => {
-    // Split by spaces and join with line breaks
-    return label.split(' ').map((word, i) => (
-      <div key={i} className="text-center" style={{ fontSize: '0.65rem', lineHeight: '1.1' }}>{word}</div>
-    ));
-  };
-
-  // Count active ports
-  const activePorts = {
-    inputs: inputs.filter(port => port.isActive !== false),
-    outputs: outputs.filter(port => port.isActive !== false)
-  };
-  
-  // Calculate port width allocations - ensure sufficient spacing
-  const inputPortWidth = Math.max(90, calculatePortSpacing(activePorts.inputs.length));
-  const outputPortWidth = Math.max(90, calculatePortSpacing(activePorts.outputs.length));
-
-  return (
-    <>
-      {/* Input Ports with increased spacing */}
-      <div className="absolute -top-1.5 left-0 right-0 flex justify-evenly items-center px-4">
-        {inputs.map((port, index) => {
-          const handleStatus = getHandleStatus(port, true);
-          const isActive = handleStatus !== 'inactive';
-          const isList = port.isListType === true;
-          
-          // Skip rendering inactive ports completely
-          if (!isActive) return null;
-          
-          return (
-            <div
-              key={`${port.id}-${index}`}
-              className="relative group"
-              style={{
-                width: `${inputPortWidth}px`,
-                height: "24px",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                // margin: "0 20px" // Add extra margin for spacing
-              }}
-            >
-              {/* Label with no truncation */}
-              <div className="absolute top-0 transform -translate-y-full -translate-x-1/2 left-1/2">
-                <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
-                     style={{ 
-                       marginBottom: '7px', 
-                       minWidth: '50px',
-                       maxWidth: '70px',
-                       width: 'auto'
-                     }}
-                >
-                  {formatLabelOneWordPerLine(port.label)}
-                  
-                  {/* Simple list indicator */}
-                  {isActive && isList && (
-                    <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-                        <rect x="8" y="8" width="8" height="2" fill="currentColor" />
-                        <rect x="8" y="12" width="8" height="2" fill="currentColor" />
-                        <rect x="8" y="16" width="8" height="2" fill="currentColor" />
-                      </svg>
-                      List
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <Handle
-                type="target"
-                position={Position.Top}
-                id={port.id}
-                isConnectable={isConnectable}
-                style={{
-                  minWidth: '9px',
-                  minHeight: '9px',
-                  width: '9px',
-                  height: '9px',
-                  top: 0
-                }}
-                className={cn(
-                  "rounded-full border-2 transition-colors",
-                  handleStatus === 'active-data' ?
-                    "!bg-blue-500 !border-black !shadow-sm !shadow-blue-300" :
-                    "!bg-white !border-black"
-                )}
-              />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Output Ports with increased spacing */}
-      <div className="absolute -bottom-1.5 left-0 right-0 flex justify-evenly items-center px-4">
-        {outputs.map((port, index) => {
-          const handleStatus = getHandleStatus(port, false);
-          const isActive = handleStatus !== 'inactive';
-          const isList = port.isListType === true;
-          
-          // Skip rendering inactive ports completely
-          if (!isActive) return null;
-          
-          return (
-            <div
-              key={`${port.id}-${index}`}
-              className="relative group"
-              style={{
-                width: `${outputPortWidth}px`,
-                height: "24px",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                // margin: "0 38px" // Add extra margin for spacing
-              }}
-            >
-              {/* Label with no truncation */}
-              <div className="absolute bottom-0 transform translate-y-full -translate-x-1/2 left-1/2">
-                <div className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative" 
-                     style={{ 
-                       marginTop: '7px', 
-                       minWidth: '50px',
-                       maxWidth: '70px',
-                       width: 'auto'
-                     }}
-                >
-                  {formatLabelOneWordPerLine(port.label)}
-                  
-                  {/* Simple list indicator */}
-                  {isActive && isList && (
-                    <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-                        <rect x="8" y="8" width="8" height="2" fill="currentColor" />
-                        <rect x="8" y="12" width="8" height="2" fill="currentColor" />
-                        <rect x="8" y="16" width="8" height="2" fill="currentColor" />
-                      </svg>
-                      List
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <Handle
-                type="source"
-                position={Position.Bottom}
-                id={port.id}
-                isConnectable={isConnectable}
-                style={{
-                  minWidth: '9px',
-                  minHeight: '9px',
-                  width: '9px',
-                  height: '9px',
-                  bottom: 0
-                }}
-                className={cn(
-                  "rounded-full border-2 transition-colors",
-                  handleStatus === 'active-data' ?
-                    "!bg-green-500 !border-black !shadow-sm !shadow-green-300" :
-                    "!bg-white !border-black"
-                )}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-};
-
-// Calculate and update the node width when ports change
-React.useEffect(() => {
-  if (config.action && actions[config.action]?.ports) {
-    const { inputs = [], outputs = [] } = 
+    // Get all available ports from the action configuration or node config
+    const { inputs = [], outputs = [] } =
       config.ports || actions[config.action].ports;
-    
-    // Count active ports only
-    const getActivePorts = (ports) => {
-      return ports.filter(port => port.isActive !== false);
-    };
-    
-    const activePorts = {
-      inputs: getActivePorts(inputs),
-      outputs: getActivePorts(outputs)
-    };
-    
-    // Calculate width based on active ports - ensure sufficient space for labels
-    const inputPortWidth = Math.max(90, calculatePortSpacing(activePorts.inputs.length));
-    const outputPortWidth = Math.max(90, calculatePortSpacing(activePorts.outputs.length));
-    
-    // Determine which set of ports needs more width
-    const maxPortCount = Math.max(activePorts.inputs.length, activePorts.outputs.length);
-    const portWidth = Math.max(inputPortWidth, outputPortWidth);
-    
-    // Add extra padding (80px) plus enough space for all ports with their margins
-    const calculatedWidth = Math.max(320, (maxPortCount * portWidth) + (maxPortCount * 35) + 80);
-    
-    // Set the new width with a slight delay to allow for animation
-    setNodeWidth(calculatedWidth);
-  }
-}, [config.action, config.ports, config.selectedColumns]);
 
-// Helper function to calculate port spacing based on port count
-// const calculatePortSpacing = (portCount) => {
-//   if (portCount <= 0) return 90; // Default width for no ports
-  
-//   const baseWidth = 90;
-//   const minWidth = 80;
-  
-//   // For more ports, reduce the width slightly but maintain minimum
-//   const reductionFactor = Math.min(1, 6 / portCount);
-//   return Math.max(minWidth, baseWidth * reductionFactor);
-// };
+    // Function to get handle status for visual representation
+    const getHandleStatus = (port: any, isInput: boolean) => {
+      // Check if there's an execution state for this node
+      if (data.executionState?.success) {
+        // For outputs, check if there's actual data available
+        if (
+          !isInput &&
+          data.executionState.data &&
+          data.executionState.data[port.id] !== undefined
+        ) {
+          return "active-data"; // This output has actual data flowing through it
+        }
+      }
+
+      return port.isActive ? "active" : "inactive";
+    };
+
+    // Function to format port label with one word per line without truncation
+    const formatLabelOneWordPerLine = (label: string) => {
+      // Split by spaces and join with line breaks
+      return label.split(" ").map((word, i) => (
+        <div
+          key={i}
+          className="text-center"
+          style={{ fontSize: "0.65rem", lineHeight: "1.1" }}
+        >
+          {word}
+        </div>
+      ));
+    };
+
+    // Count active ports
+    const activePorts = {
+      inputs: inputs.filter((port) => port.isActive !== false),
+      outputs: outputs.filter((port) => port.isActive !== false),
+    };
+
+    // Calculate port width allocations - ensure sufficient spacing
+    const inputPortWidth = Math.max(
+      90,
+      calculatePortSpacing(activePorts.inputs.length)
+    );
+    const outputPortWidth = Math.max(
+      90,
+      calculatePortSpacing(activePorts.outputs.length)
+    );
+
+    return (
+      <>
+        {/* Input Ports with increased spacing */}
+        <div className="absolute -top-1.5 left-0 right-0 flex justify-evenly items-center px-4">
+          {inputs.map((port, index) => {
+            const handleStatus = getHandleStatus(port, true);
+            const isActive = handleStatus !== "inactive";
+            const isList = port.isListType === true;
+
+            // Skip rendering inactive ports completely
+            if (!isActive) return null;
+
+            return (
+              <div
+                key={`${port.id}-${index}`}
+                className="relative group"
+                style={{
+                  width: `${inputPortWidth}px`,
+                  height: "24px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  // margin: "0 20px" // Add extra margin for spacing
+                }}
+              >
+                {/* Label with no truncation */}
+                <div className="absolute top-0 transform -translate-y-full -translate-x-1/2 left-1/2">
+                  <div
+                    className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative"
+                    style={{
+                      marginBottom: "7px",
+                      minWidth: "50px",
+                      maxWidth: "70px",
+                      width: "auto",
+                    }}
+                  >
+                    {formatLabelOneWordPerLine(port.label)}
+
+                    {/* Simple list indicator */}
+                    {isActive && isList && (
+                      <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
+                        <svg
+                          className="w-3 h-3"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <rect
+                            x="4"
+                            y="4"
+                            width="16"
+                            height="16"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          />
+                          <rect
+                            x="8"
+                            y="8"
+                            width="8"
+                            height="2"
+                            fill="currentColor"
+                          />
+                          <rect
+                            x="8"
+                            y="12"
+                            width="8"
+                            height="2"
+                            fill="currentColor"
+                          />
+                          <rect
+                            x="8"
+                            y="16"
+                            width="8"
+                            height="2"
+                            fill="currentColor"
+                          />
+                        </svg>
+                        List
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Handle
+                  type="target"
+                  position={Position.Top}
+                  id={port.id}
+                  isConnectable={isConnectable}
+                  style={{
+                    minWidth: "9px",
+                    minHeight: "9px",
+                    width: "9px",
+                    height: "9px",
+                    top: 0,
+                  }}
+                  className={cn(
+                    "rounded-full border-2 transition-colors",
+                    handleStatus === "active-data"
+                      ? "!bg-blue-500 !border-black !shadow-sm !shadow-blue-300"
+                      : "!bg-white !border-black"
+                  )}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Output Ports with increased spacing */}
+        <div className="absolute -bottom-1.5 left-0 right-0 flex justify-evenly items-center px-4">
+          {outputs.map((port, index) => {
+            const handleStatus = getHandleStatus(port, false);
+            const isActive = handleStatus !== "inactive";
+            const isList = port.isListType === true;
+
+            // Skip rendering inactive ports completely
+            if (!isActive) return null;
+
+            return (
+              <div
+                key={`${port.id}-${index}`}
+                className="relative group"
+                style={{
+                  width: `${outputPortWidth}px`,
+                  height: "24px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  // margin: "0 38px" // Add extra margin for spacing
+                }}
+              >
+                {/* Label with no truncation */}
+                <div className="absolute bottom-0 transform translate-y-full -translate-x-1/2 left-1/2">
+                  <div
+                    className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200 flex flex-col items-center relative"
+                    style={{
+                      marginTop: "7px",
+                      minWidth: "50px",
+                      maxWidth: "70px",
+                      width: "auto",
+                    }}
+                  >
+                    {formatLabelOneWordPerLine(port.label)}
+
+                    {/* Simple list indicator */}
+                    {isActive && isList && (
+                      <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5 text-gray-500 text-[0.6rem]">
+                        <svg
+                          className="w-3 h-3"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <rect
+                            x="4"
+                            y="4"
+                            width="16"
+                            height="16"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          />
+                          <rect
+                            x="8"
+                            y="8"
+                            width="8"
+                            height="2"
+                            fill="currentColor"
+                          />
+                          <rect
+                            x="8"
+                            y="12"
+                            width="8"
+                            height="2"
+                            fill="currentColor"
+                          />
+                          <rect
+                            x="8"
+                            y="16"
+                            width="8"
+                            height="2"
+                            fill="currentColor"
+                          />
+                        </svg>
+                        List
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Handle
+                  type="source"
+                  position={Position.Bottom}
+                  id={port.id}
+                  isConnectable={isConnectable}
+                  style={{
+                    minWidth: "9px",
+                    minHeight: "9px",
+                    width: "9px",
+                    height: "9px",
+                    bottom: 0,
+                  }}
+                  className={cn(
+                    "rounded-full border-2 transition-colors",
+                    handleStatus === "active-data"
+                      ? "!bg-green-500 !border-black !shadow-sm !shadow-green-300"
+                      : "!bg-white !border-black"
+                  )}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
+  // Calculate and update the node width when ports change
+  useEffect(() => {
+    if (config.action && actions[config.action]?.ports) {
+      const { inputs = [], outputs = [] } =
+        config.ports || actions[config.action].ports;
+
+      // Count active ports only
+      const getActivePorts = (ports) => {
+        return ports.filter((port) => port.isActive !== false);
+      };
+
+      const activePorts = {
+        inputs: getActivePorts(inputs),
+        outputs: getActivePorts(outputs),
+      };
+
+      // Calculate width based on active ports - ensure sufficient space for labels
+      const inputPortWidth = Math.max(
+        90,
+        calculatePortSpacing(activePorts.inputs.length)
+      );
+      const outputPortWidth = Math.max(
+        90,
+        calculatePortSpacing(activePorts.outputs.length)
+      );
+
+      // Determine which set of ports needs more width
+      const maxPortCount = Math.max(
+        activePorts.inputs.length,
+        activePorts.outputs.length
+      );
+      const portWidth = Math.max(inputPortWidth, outputPortWidth);
+
+      // Add extra padding (80px) plus enough space for all ports with their margins
+      const calculatedWidth = Math.max(
+        320,
+        maxPortCount * portWidth + maxPortCount * 35 + 80
+      );
+
+      // Set the new width with a slight delay to allow for animation
+      setNodeWidth(calculatedWidth);
+    }
+  }, [config.action, config.ports, config.selectedColumns]);
 
   const renderHeader = (actionName?: string) => (
     <div className="relative">
@@ -506,23 +633,25 @@ React.useEffect(() => {
     if (!field.dependencies || field.dependencies.length === 0) {
       return true;
     }
-    
+
     // Check if all dependencies are satisfied
     return field.dependencies.every((dep: string) => {
-      return config[dep] !== undefined && config[dep] !== null && config[dep] !== '';
+      return (
+        config[dep] !== undefined && config[dep] !== null && config[dep] !== ""
+      );
     });
   };
 
   if (config.action) {
     const action = actions[config.action];
-    
+
     return (
-      <Card 
+      <Card
         id={`node-${id}`}
         className={`p-4 ${selected ? "ring-2 ring-blue-500" : ""}`}
-        style={{ 
+        style={{
           width: `${nodeWidth}px`,
-          transition: 'width 0.3s ease-out' // Add smooth animation
+          transition: "width 0.3s ease-out", // Add smooth animation
         }}
       >
         {renderPorts()}
@@ -536,20 +665,34 @@ React.useEffect(() => {
         <div className="space-y-4">
           {action.configFields.map((field) => {
             // Skip rendering the 'selectedColumns' field if no spreadsheet is selected yet
-            if (!config.spreadsheetId && 
-              (field.name === 'selectedColumns' || 
-               field.name === 'searchColumn' || 
-               field.name === 'searchValue' || 
-               field.name === 'updaterMode')) {
-            return null;
-          }
+            if (
+              !config.spreadsheetId &&
+              (field.name === "selectedColumns" ||
+                field.name === "searchColumn" ||
+                field.name === "searchValue" ||
+                field.name === "updaterMode")
+            ) {
+              return null;
+            }
+
+            // Skip fields that shouldn't be visible based on dependencies
+            if (!isFieldVisible(field, config)) {
+              return null;
+            }
 
             return (
               <div key={field.name} className="space-y-2">
                 <Label>
                   <strong>{field.label}</strong>
                 </Label>
-                {field.type === "text" ? (
+                {field.type === "file" ? (
+                  <SlackFileUploader
+                    selectedFiles={config[field.name] || null}
+                    onFilesSelected={(files) =>
+                      handleConfigChange({ [field.name]: files })
+                    }
+                  />
+                ) : field.type === "text" ? (
                   <Textarea
                     value={config[field.name] || ""}
                     onChange={(e) =>
@@ -565,6 +708,12 @@ React.useEffect(() => {
                     onValueChange={(value) =>
                       handleConfigChange({ [field.name]: value })
                     }
+                    // Add onOpenChange to trigger dynamic options loading
+                    onOpenChange={(open) => {
+                      if (open && field.loadOptions) {
+                        handleOptionLoad(field);
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue
@@ -575,21 +724,46 @@ React.useEffect(() => {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {(field.name === "searchColumn" && config.availableColumns
-                        ? config.availableColumns
-                        : field.options
-                      )?.map(
-                        (option: { value: string; label: string } | string) => (
-                          <SelectItem
-                            key={
-                              typeof option === "string" ? option : option.value
-                            }
-                            value={
-                              typeof option === "string" ? option : option.value
-                            }
-                          >
-                            {typeof option === "string" ? option : option.label}
-                          </SelectItem>
+                      {/* Handle dynamic options first */}
+                      {field.loadOptions ? (
+                        loadingOptions[field.name] ? (
+                          <div className="p-2 text-center text-sm text-gray-500">
+                            Loading options...
+                          </div>
+                        ) : dynamicOptions[field.name]?.length > 0 ? (
+                          dynamicOptions[field.name].map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-2 text-center text-sm text-gray-500">
+                            No options available
+                          </div>
+                        )
+                      ) : (
+                        // If not using loadOptions, use static options as before
+                        (field.name === "searchColumn" && config.availableColumns
+                          ? config.availableColumns
+                          : field.options
+                        )?.map(
+                          (option: { value: string; label: string } | string) => (
+                            <SelectItem
+                              key={
+                                typeof option === "string" ? option : option.value
+                              }
+                              value={
+                                typeof option === "string" ? option : option.value
+                              }
+                            >
+                              {typeof option === "string"
+                                ? option
+                                : option.label}
+                            </SelectItem>
+                          )
                         )
                       )}
                     </SelectContent>
@@ -707,6 +881,7 @@ React.useEffect(() => {
   }
 
   return (
+
     <Card className="p-4 w-80">
       {renderHeader()}
       <div className="space-y-2">
@@ -724,6 +899,7 @@ React.useEffect(() => {
       </div>
     </Card>
   );
+  
 };
 
 export default FlowNode;

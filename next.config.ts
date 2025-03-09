@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
               default-src 'self';
               script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.google.com https://*.googleapis.com https://apis.google.com;
               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-              connect-src 'self' https://*.google.com https://*.googleapis.com https://www.gstatic.com https://*.googlevideo.com https://csp.withgoogle.com;
+              connect-src 'self' https://*.google.com https://*.googleapis.com https://www.gstatic.com https://*.googlevideo.com https://csp.withgoogle.com https://*.slack.com;
               frame-src 'self' https://*.google.com;
               img-src 'self' data: https://*.google.com https://*.googleapis.com;
               font-src 'self' https://fonts.gstatic.com;

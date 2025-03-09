@@ -121,6 +121,62 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
 
+  const renderSlackResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to send message to Slack"}
+        </div>
+      );
+    }
+  
+    return (
+      <div className="p-2">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-green-600">Success</span>
+        </div>
+        
+        <div className="bg-gray-50 p-3 rounded">
+          <div className="flex items-center gap-2 mb-2">
+            {/* <img 
+              src="/icons/slack.svg" 
+              alt="Slack" 
+              className="w-5 h-5" 
+            /> */}
+            <span className="font-medium">Message sent to channel</span>
+          </div>
+          
+          {result.data.message && (
+            <div className="border-l-4 border-gray-300 pl-3 py-1 mt-2 text-gray-700">
+              {result.data.message}
+            </div>
+          )}
+          
+          {result.data.fileIds && result.data.fileIds.length > 0 && (
+            <div className="mt-3">
+              <div className="text-sm text-gray-500 mb-1">
+                Attachments: {result.data.fileIds.length} file(s) uploaded
+              </div>
+              <div className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-paperclip">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+                <span className="text-blue-500">{result.data.fileIds.length} attachment(s)</span>
+              </div>
+            </div>
+          )}
+          
+          <div className="mt-3 text-sm">
+            <div className="flex items-center text-gray-500">
+              <span className="font-medium mr-1">Thread ID:</span> 
+              {result.data.output_threadId}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
     switch (node.type) {
       case "gmail":
@@ -414,6 +470,8 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
         } else {
           return renderGDocsResults(nodeId, result);
         }
+        case "slack":
+          return renderSlackResults(nodeId, result);
     }
 
     // Default fallback renderer
@@ -499,6 +557,16 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                         height="24"
                       />
                     </div>
+                  )}
+                  {node.type === "slack" && (
+                     <div className="mr-3 text-blue-600">
+                     <img
+                       src="/icons/slack.svg"
+                       alt="Slack"
+                       width="24"
+                       height="24"
+                     />
+                   </div>
                   )}
                   <div>
                     <h3 className="text-lg font-medium">

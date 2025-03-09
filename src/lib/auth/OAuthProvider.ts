@@ -1,41 +1,76 @@
 import { SERVICES } from "../services";
 
 const AUTH_ENDPOINTS = {
-    google: {
-      auth: 'https://accounts.google.com/o/oauth2/v2/auth',
-      token: 'https://oauth2.googleapis.com/token'
+  google: {
+    auth: 'https://accounts.google.com/o/oauth2/v2/auth',
+    token: 'https://oauth2.googleapis.com/token'
+  },
+  slack: {
+    auth: 'https://slack.com/oauth/v2/authorize',
+    token: 'https://slack.com/api/oauth.v2.access'
+  }
+};
+
+export class OAuthProvider {
+  private config: {
+    clientId: string;
+    clientSecret: string;
+    baseUrl: string;
+    serviceId: string;
+  } | null = null;
+
+  async initialize(config: {
+    clientId: string;
+    clientSecret: string;
+    baseUrl: string;
+    serviceId: string;
+  }) {
+    this.config = config;
+  }
+
+  private getRedirectUri(): string {
+    if (!this.config) throw new Error('Not initialized');
+    
+    // Use different callback endpoints for different services
+    const authProvider = this.getAuthProvider();
+    return `${this.config.baseUrl.replace(/\/$/, '')}/api/auth/${authProvider}/callback`;
+  }
+  
+  private getAuthProvider(): string {
+    // Map service ID to auth provider (google or slack)
+    // This allows mapping multiple services to the same auth provider
+    if (!this.config) throw new Error('Not initialized');
+    
+    const serviceId = this.config.serviceId;
+    if (serviceId === 'slack') {
+      return 'slack';
     }
-  };
-  
-  export class OAuthProvider {
-    private config: {
-      clientId: string;
-      clientSecret: string;
-      baseUrl: string;
-      serviceId: string;
-    } | null = null;
-  
-    async initialize(config: {
-      clientId: string;
-      clientSecret: string;
-      baseUrl: string;
-      serviceId: string;
-    }) {
-      this.config = config;
-    }
-  
-    private getRedirectUri(): string {
-      if (!this.config) throw new Error('Not initialized');
-      // Always use /google/ in the actual redirect URL for Google OAuth
-      return `${this.config.baseUrl.replace(/\/$/, '')}/api/auth/google/callback`;
-    }
-  
-    async getAuthUrl(): Promise<string> {
-      if (!this.config) throw new Error('Not initialized');
+    
+    // Default to google auth for all other services
+    return 'google';
+  }
+
+  async getAuthUrl(): Promise<string> {
+    if (!this.config) throw new Error('Not initialized');
+    
+    const service = SERVICES[this.config.serviceId];
+    if (!service) throw new Error('Invalid service');
+    
+    const authProvider = this.getAuthProvider();
+    const authEndpoint = AUTH_ENDPOINTS[authProvider].auth;
+    
+    if (authProvider === 'slack') {
+      // Slack-specific auth parameters
+      const params = new URLSearchParams({
+        client_id: this.config.clientId,
+        redirect_uri: this.getRedirectUri(),
+        scope: service.authScopes.join(' '),
+        state: this.config.serviceId  // Store the actual service in state parameter
+      });
       
-      const service = SERVICES[this.config.serviceId];
-      if (!service) throw new Error('Invalid service');
-      
+      return `${authEndpoint}?${params.toString()}`;
+    } else {
+      // Google auth parameters
       const params = new URLSearchParams({
         client_id: this.config.clientId,
         redirect_uri: this.getRedirectUri(),
@@ -43,30 +78,58 @@ const AUTH_ENDPOINTS = {
         scope: service.authScopes.join(' '),
         access_type: 'offline',
         prompt: 'consent',
-        // Store the actual service in state parameter
         state: this.config.serviceId
       });
-  
-      return `${AUTH_ENDPOINTS.google.auth}?${params.toString()}`;
-    }
-  
-    async handleCallback(code: string) {
-      if (!this.config) throw new Error('Not initialized');
-  
-      const response = await fetch(AUTH_ENDPOINTS.google.token, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          code,
-          client_id: this.config.clientId,
-          client_secret: this.config.clientSecret,
-          redirect_uri: this.getRedirectUri(),
-          grant_type: 'authorization_code',
-        }),
-      });
-  
-      return response.json();
+      
+      return `${authEndpoint}?${params.toString()}`;
     }
   }
+
+  async handleCallback(code: string): Promise<any> {
+    if (!this.config) throw new Error('Not initialized');
+    
+    const authProvider = this.getAuthProvider();
+    const tokenEndpoint = AUTH_ENDPOINTS[authProvider].token;
+    
+    const formData = new URLSearchParams();
+    formData.append('code', code);
+    formData.append('client_id', this.config.clientId);
+    formData.append('client_secret', this.config.clientSecret);
+    formData.append('redirect_uri', this.getRedirectUri());
+    
+    if (authProvider === 'slack') {
+      // No grant_type required for Slack
+    } else {
+      formData.append('grant_type', 'authorization_code');
+    }
+    
+    const response = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Token request failed: ${errorData.error || response.statusText}`);
+    }
+    
+    const tokenData = await response.json();
+    
+    // Process token data based on provider
+    if (authProvider === 'slack') {
+      // Slack tokens are nested in a different structure
+      return {
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expiry_date: Date.now() + (tokenData.expires_in || 86400) * 1000,
+        team_id: tokenData.team?.id || tokenData.team_id,
+        team_name: tokenData.team?.name || tokenData.team_name
+      };
+    }
+    
+    return tokenData;
+  }
+}

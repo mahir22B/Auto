@@ -2,6 +2,7 @@ import { GMAIL_ACTIONS } from "../gmail/actions";
 import { GDRIVE_ACTIONS } from "../gdrive/actions";
 import { SHEETS_ACTIONS } from "../sheets/actions";
 import { GDOCS_ACTIONS } from "../gdocs/actions";
+import { SLACK_ACTIONS } from "../slack/actions";
 
 export interface Port {
   id: string;
@@ -29,6 +30,7 @@ export interface ConfigField {
     mimeTypes?: string[];
   };
   onValueSelect?: (value: any, config: any, context: any) => Promise<any>;
+  loadOptions?: (context: any) => Promise<any[]>;
 }
 
 export interface ActionConfig {
@@ -108,6 +110,23 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/drive.metadata.readonly"
+    ],
+  },
+  slack: {
+    id: "slack",
+    name: "Slack",
+    description: "Send messages to Slack channels",
+    icon: "/icons/slack.svg",
+    actions: SLACK_ACTIONS,
+    authScopes: [
+      "chat:write",
+      "channels:read",
+      "groups:read",
+      "files:write",
+      "files:read",
+      "users:read",
+      "im:read",         
+      "mpim:read"         
     ],
   },
 };
