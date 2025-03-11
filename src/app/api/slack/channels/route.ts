@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     
     console.log('Attempting to fetch Slack channels with token');
     
-    const response = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=100', {
+    const response = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&exclude_archived=true&limit=100', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -27,10 +27,12 @@ export async function GET(request: Request) {
       return Response.json({ error: data.error }, { status: 400 });
     }
     
-    const channels = data.channels?.map((channel: any) => ({
-      value: channel.id,
-      label: channel.is_im ? `@${channel.user}` : `#${channel.name || channel.id}`
-    })) || [];
+    // Filter for channels the app is a member of
+    const channels = data.channels?.filter(channel => channel.is_member)
+      .map((channel) => ({
+        value: channel.id,
+        label: channel.is_im ? `@${channel.user}` : `#${channel.name || channel.id}`
+      })) || [];
     
     return Response.json(channels);
   } catch (error) {

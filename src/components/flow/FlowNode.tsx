@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { X } from "lucide-react";
+import { X, RefreshCw } from "lucide-react";
 import { SERVICES } from "@/lib/services";
 import { cn } from "@/lib/utils";
 import {
@@ -70,7 +70,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
 
   // Function to handle dynamic options loading
   const handleOptionLoad = useCallback(async (field: any) => {
-    if (!field.loadOptions || dynamicOptions[field.name]) return;
+    if (!field.loadOptions) return;
     
     setLoadingOptions(prev => ({ ...prev, [field.name]: true }));
     
@@ -87,7 +87,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     } finally {
       setLoadingOptions(prev => ({ ...prev, [field.name]: false }));
     }
-  }, [data.authState, config, dynamicOptions]);
+  }, [data.authState, config]);
 
   // Calculate port spacing based on the number of ports
   const calculatePortSpacing = (portCount) => {
@@ -629,17 +629,30 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   }
 
   const isFieldVisible = (field: any, config: any): boolean => {
-    // If no dependencies specified, field is always visible
-    if (!field.dependencies || field.dependencies.length === 0) {
+    // If no dependencies or visibilityCondition specified, field is always visible
+    if ((!field.dependencies || field.dependencies.length === 0) && !field.visibilityCondition) {
       return true;
     }
 
-    // Check if all dependencies are satisfied
-    return field.dependencies.every((dep: string) => {
+    // First check dependencies
+    const dependenciesSatisfied = !field.dependencies || field.dependencies.every((dep: string) => {
       return (
         config[dep] !== undefined && config[dep] !== null && config[dep] !== ""
       );
     });
+    
+    // If dependencies aren't satisfied, return false immediately
+    if (!dependenciesSatisfied) {
+      return false;
+    }
+    
+    // If there's a visibilityCondition function, evaluate it
+    if (field.visibilityCondition && typeof field.visibilityCondition === 'function') {
+      return field.visibilityCondition(config);
+    }
+    
+    // If we get here, dependencies are satisfied and there's no visibilityCondition
+    return true;
   };
 
   if (config.action) {
@@ -703,71 +716,91 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                     }
                   />
                 ) : field.type === "select" ? (
-                  <Select
-                    value={config[field.name] || ""}
-                    onValueChange={(value) =>
-                      handleConfigChange({ [field.name]: value })
-                    }
-                    // Add onOpenChange to trigger dynamic options loading
-                    onOpenChange={(open) => {
-                      if (open && field.loadOptions) {
-                        handleOptionLoad(field);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          field.placeholder ||
-                          `Select ${field.label.toLowerCase()}`
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={config[field.name] || ""}
+                        onValueChange={(value) =>
+                          handleConfigChange({ [field.name]: value })
                         }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Handle dynamic options first */}
-                      {field.loadOptions ? (
-                        loadingOptions[field.name] ? (
-                          <div className="p-2 text-center text-sm text-gray-500">
-                            Loading options...
-                          </div>
-                        ) : dynamicOptions[field.name]?.length > 0 ? (
-                          dynamicOptions[field.name].map((option) => (
-                            <SelectItem
-                              key={option.value}
-                              value={option.value}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="p-2 text-center text-sm text-gray-500">
-                            No options available
-                          </div>
-                        )
-                      ) : (
-                        // If not using loadOptions, use static options as before
-                        (field.name === "searchColumn" && config.availableColumns
-                          ? config.availableColumns
-                          : field.options
-                        )?.map(
-                          (option: { value: string; label: string } | string) => (
-                            <SelectItem
-                              key={
-                                typeof option === "string" ? option : option.value
-                              }
-                              value={
-                                typeof option === "string" ? option : option.value
-                              }
-                            >
-                              {typeof option === "string"
-                                ? option
-                                : option.label}
-                            </SelectItem>
-                          )
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
+                        onOpenChange={(open) => {
+                          // Only auto-load options if this field doesn't have a refresh button
+                          if (open && field.loadOptions && !field.refreshable) {
+                            handleOptionLoad(field);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              field.placeholder ||
+                              `Select ${field.label.toLowerCase()}`
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Handle dynamic options first */}
+                          {field.loadOptions ? (
+                            loadingOptions[field.name] ? (
+                              <div className="p-2 text-center text-sm text-gray-500">
+                                Loading options...
+                              </div>
+                            ) : dynamicOptions[field.name]?.length > 0 ? (
+                              dynamicOptions[field.name].map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="p-2 text-center text-sm text-gray-500">
+                                No options available
+                              </div>
+                            )
+                          ) : (
+                            // If not using loadOptions, use static options as before
+                            (field.name === "searchColumn" && config.availableColumns
+                              ? config.availableColumns
+                              : field.options
+                            )?.map(
+                              (option: { value: string; label: string } | string) => (
+                                <SelectItem
+                                  key={
+                                    typeof option === "string" ? option : option.value
+                                  }
+                                  value={
+                                    typeof option === "string" ? option : option.value
+                                  }
+                                >
+                                  {typeof option === "string"
+                                    ? option
+                                    : option.label}
+                                </SelectItem>
+                              )
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Add refresh button for fields that support it */}
+                    {field.refreshable && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-2"
+                        onClick={() => handleOptionLoad(field)}
+                        disabled={loadingOptions[field.name]}
+                        title={`Refresh ${field.label.toLowerCase()}`}
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 ${loadingOptions[field.name] ? 'animate-spin' : ''}`}
+                        />
+                      </Button>
+                    )}
+                  </div>
                 ) : field.type === "google-picker" ? (
                   <GooglePicker
                     onFileSelect={async (fileDetails) => {
@@ -881,7 +914,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   }
 
   return (
-
     <Card className="p-4 w-80">
       {renderHeader()}
       <div className="space-y-2">

@@ -2,7 +2,11 @@ export type SlackAction = 'SEND_MESSAGE';
 
 export interface SlackConfig {
   action: SlackAction;
+  // New target type configuration
+  targetType?: 'channel' | 'user';
   channelId?: string;
+  userId?: string;
+  // Original fields
   message?: string;
   threadId?: string;
   // For file attachments

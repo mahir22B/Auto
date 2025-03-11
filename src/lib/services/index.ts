@@ -22,6 +22,7 @@ export interface ConfigField {
   options?: any[];
   dependencies?: string[];
   visibilityCondition?: (config: any) => boolean;
+  refreshable?: boolean;
   pickerOptions?: {
     serviceType?: string;
     title?: string;
@@ -48,6 +49,7 @@ export interface ActionConfig {
   };
   // Add new method to evaluate port types based on config
   getPortListTypes?: (config: any) => Record<string, boolean>;
+  refreshable?: boolean;
 }
 
 export interface ServiceConfig {

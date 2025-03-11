@@ -143,7 +143,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
               alt="Slack" 
               className="w-5 h-5" 
             /> */}
-            <span className="font-medium">Message sent to channel</span>
+            <span className="font-medium">Message sent successfully</span>
           </div>
           
           {result.data.message && (

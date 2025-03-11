@@ -100,12 +100,18 @@ export class SlackExecutor extends AbstractExecutor {
         throw new Error("Message or attachments required");
       }
 
-      if (!config.channelId) {
-        throw new Error("Channel ID is required");
+      // Get target ID based on target type (channel or user)
+      const targetType = config.targetType || 'channel';
+      const targetId = targetType === 'channel' 
+                      ? config.channelId 
+                      : config.userId;
+
+      if (!targetId) {
+        throw new Error(`${targetType === 'channel' ? 'Channel' : 'User'} ID is required`);
       }
 
       const messageParams: any = {
-        channel: config.channelId,
+        channel: targetId, // Slack API uses 'channel' param even for direct messages
         text: message || "Attached file(s)",
       };
 
@@ -135,7 +141,7 @@ export class SlackExecutor extends AbstractExecutor {
             output_threadId: response.ts,
             channel: response.channel,
             message: message,
-            displayText: `Message sent to channel`,
+            displayText: `Message sent to ${targetType === 'channel' ? 'channel' : 'user'}`,
             _output_types: {
               output_threadId: 'string'
             }
@@ -143,17 +149,18 @@ export class SlackExecutor extends AbstractExecutor {
         };
       }
 
-      // Otherwise, use files.upload for each attachment via proxy
+      // Otherwise, use the new two-step file upload for each attachment via proxy
       const uploadResults = await Promise.all(
         attachments.map(async (file, index) => {
           // Create FormData for file upload
           const formData = new FormData();
-          formData.append('channels', config.channelId!);
+          formData.append('channels', targetId); // Note: API expects channel_id but we handle this in the proxy
           formData.append('filename', file.name);
           
           // Convert content to Blob if it's ArrayBuffer
+          let fileBlob;
           if (file.content instanceof ArrayBuffer) {
-            formData.append('file', new Blob([file.content], { type: file.type }));
+            fileBlob = new Blob([file.content], { type: file.type });
           } else if (typeof file.content === 'string') {
             // If it's base64, convert to Blob
             const base64Content = file.content.replace(/^data:.*?;base64,/, '');
@@ -162,10 +169,12 @@ export class SlackExecutor extends AbstractExecutor {
             for (let i = 0; i < binaryContent.length; i++) {
               uint8Array[i] = binaryContent.charCodeAt(i);
             }
-            formData.append('file', new Blob([uint8Array], { type: file.type }));
+            fileBlob = new Blob([uint8Array], { type: file.type });
           } else {
             throw new Error(`Unsupported file content type for ${file.name}`);
           }
+          
+          formData.append('file', fileBlob);
           
           // Add thread_ts if in a thread
           if (threadId) {
@@ -181,7 +190,7 @@ export class SlackExecutor extends AbstractExecutor {
           const data = await this.uploadFileViaProxy(formData, context);
           
           if (!data.ok) {
-            throw new Error(`Failed to upload file ${file.name}: ${data.error}`);
+            throw new Error(`Failed to upload file ${file.name}: ${data.error || 'Unknown error'}`);
           }
           
           return data;
@@ -191,14 +200,29 @@ export class SlackExecutor extends AbstractExecutor {
       // Return the thread ID from the first upload (or from the last if multiple)
       const lastUpload = uploadResults[uploadResults.length - 1];
       
+      // In the V2 API, the files property contains an array of file objects
+      const resultThreadId = 
+        // Try to get thread TS from various possible locations in the response
+        lastUpload.files?.[0]?.shares?.public?.[targetId]?.[0]?.ts ||
+        lastUpload.files?.[0]?.ts ||
+        lastUpload.files?.[0]?.id ||
+        '';
+
+      const fileIds = uploadResults.flatMap(r => {
+        if (r.files && r.files.length > 0) {
+          return r.files.map((f: any) => f.id);
+        }
+        return [];
+      }).filter(Boolean);
+      
       return {
         success: true,
         data: {
-          output_threadId: lastUpload.file?.shares?.public?.[config.channelId!]?.[0]?.ts || lastUpload.file?.id,
-          channel: config.channelId,
+          output_threadId: resultThreadId,
+          channel: targetId,
           message: message,
-          displayText: `Message with ${attachments.length} attachment(s) sent to channel`,
-          fileIds: uploadResults.map(r => r.file?.id).filter(Boolean),
+          displayText: `Message with ${attachments.length} attachment(s) sent to ${targetType === 'channel' ? 'channel' : 'user'}`,
+          fileIds: fileIds,
           _output_types: {
             output_threadId: 'string'
           }
