@@ -189,7 +189,7 @@ export const SLACK_ACTIONS: Record<string, ActionConfig> = {
         type: 'select',
         required: true,
         options: [
-          { value: 'count', label: 'By Message Count (Recent Messages)' },
+          { value: 'count', label: 'By MessageCount (Recent Messages)' },
           { value: 'dateRange', label: 'By Date Range' }
         ],
         placeholder: 'Select retrieval method',
@@ -204,24 +204,26 @@ export const SLACK_ACTIONS: Record<string, ActionConfig> = {
         dependencies: ['retrievalMethod'],
         visibilityCondition: (config) => !config.retrievalMethod || config.retrievalMethod === 'count'
       },
-      {
-        name: 'startDate',
-        label: 'Start Date',
-        type: 'string', // Using string type for date input
-        required: true,
-        placeholder: 'YYYY-MM-DD',
-        dependencies: ['retrievalMethod'],
-        visibilityCondition: (config) => config.retrievalMethod === 'dateRange'
-      },
-      {
-        name: 'endDate',
-        label: 'End Date',
-        type: 'string', // Using string type for date input
-        required: true,
-        placeholder: 'YYYY-MM-DD',
-        dependencies: ['retrievalMethod'],
-        visibilityCondition: (config) => config.retrievalMethod === 'dateRange'
-      },
+// Updated date fields in the READ_MESSAGES action configFields
+
+{
+  name: 'startDate',
+  label: 'Start Date',
+  type: 'date', // Change from 'string' to 'date'
+  required: true,
+  placeholder: 'YYYY-MM-DD',
+  dependencies: ['retrievalMethod'],
+  visibilityCondition: (config) => config.retrievalMethod === 'dateRange'
+},
+{
+  name: 'endDate',
+  label: 'End Date',
+  type: 'date', // Change from 'string' to 'date'
+  required: true,
+  placeholder: 'YYYY-MM-DD',
+  dependencies: ['retrievalMethod'],
+  visibilityCondition: (config) => config.retrievalMethod === 'dateRange'
+},
       {
         name: 'messageInformation',
         label: 'Message Information',

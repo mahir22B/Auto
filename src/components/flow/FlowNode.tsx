@@ -194,23 +194,28 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     }
 
     // Update ports when relevant selections change
-    if (
-      (updates.selectedColumns && data.service === "sheets") ||
-      (updates.emailInformation && data.service === "gmail") ||
-      // Add this condition to update ports when maxResults changes for Gmail
-      (updates.maxResults !== undefined &&
-        data.service === "gmail" &&
-        config.action === "READ_UNREAD")
-    ) {
-      if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
-        const ports = actions[newConfig.action].getDynamicPorts(newConfig);
-        data.updateNodeConfig({
-          ...newConfig,
-          ports,
-        });
-        return;
-      }
-    }
+// Update ports when relevant selections change
+if (
+  (updates.selectedColumns && data.service === "sheets") ||
+  (updates.emailInformation && data.service === "gmail") ||
+  // Add this condition to update ports when maxResults changes for Gmail
+  (updates.maxResults !== undefined &&
+    data.service === "gmail" &&
+    config.action === "READ_UNREAD") ||
+  // Add this condition to update ports when messageInformation changes for Slack
+  (updates.messageInformation &&
+    data.service === "slack" &&
+    config.action === "READ_MESSAGES")
+) {
+  if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
+    const ports = actions[newConfig.action].getDynamicPorts(newConfig);
+    data.updateNodeConfig({
+      ...newConfig,
+      ports,
+    });
+    return;
+  }
+}
 
     data.updateNodeConfig(newConfig);
   };
