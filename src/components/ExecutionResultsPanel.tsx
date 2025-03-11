@@ -177,6 +177,124 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
 
+  const renderSlackReadResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to read Slack messages"}
+        </div>
+      );
+    }
+  
+    const { messages, messageCount, channelName } = result.data;
+  
+    if (!messages || messages.length === 0) {
+      return (
+        <div className="p-2 text-gray-500 italic">
+          No messages found in channel {channelName || "unknown"}
+        </div>
+      );
+    }
+  
+    return (
+      <div className="space-y-4">
+        <div className="p-2">
+          <div className="text-lg font-medium mb-2">
+            Retrieved {messageCount} messages from #{channelName}
+          </div>
+          
+          <div className="bg-gray-50 p-2 rounded-lg border border-gray-200">
+            <div className="mb-2 text-sm text-gray-500">Message preview:</div>
+            
+            <div className="space-y-3 max-h-96 overflow-auto p-2">
+              {messages.slice(0, 50).map((message: any, index: number) => (
+                <div key={index} className="border-b border-gray-200 pb-2 last:border-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium">{message.username || message.user}</span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(Number(message.ts) * 1000).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap">{message.text}</div>
+                  
+                  {message.files && message.files.length > 0 && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-blue-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-paperclip">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                      </svg>
+                      {message.files.length} attachment(s)
+                    </div>
+                  )}
+                  
+                  {message.threadTs && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                      Thread reply
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {/* {messages.length > 5 && (
+                <div className="text-center text-sm text-gray-500 pt-2">
+                  {messages.length - 5} more messages not shown
+                </div>
+              )} */}
+            </div>
+          </div>
+          
+          {/* Output summary */}
+          <div className="mt-4 space-y-2">
+            {result.data.output_messages && (
+              <div className="text-sm">
+                <span className="font-medium">Message texts:</span> {result.data.output_messages.length} extracted
+              </div>
+            )}
+            
+            {result.data.output_sender_names && (
+              <div className="text-sm">
+                <span className="font-medium">Sender names:</span> {result.data.output_sender_names.length} extracted
+              </div>
+            )}
+            
+            {result.data.output_thread_ids && (
+              <div className="text-sm">
+                <span className="font-medium">Thread IDs:</span> {result.data.output_thread_ids.length} extracted
+              </div>
+            )}
+            
+            {result.data.output_attachment_names && (
+              <div className="text-sm">
+                <span className="font-medium">Attachment names:</span> {result.data.output_attachment_names.length} extracted
+              </div>
+            )}
+            
+            {result.data.output_thread_links && (
+              <div className="text-sm">
+                <span className="font-medium">Thread links:</span> {result.data.output_thread_links.length} extracted
+              </div>
+            )}
+            
+            {result.data.output_channel_names && (
+              <div className="text-sm">
+                <span className="font-medium">Channel names:</span> {result.data.output_channel_names.length} extracted
+              </div>
+            )}
+            
+            {result.data.output_channel_ids && (
+              <div className="text-sm">
+                <span className="font-medium">Channel IDs:</span> {result.data.output_channel_ids.length} extracted
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
     switch (node.type) {
       case "gmail":
@@ -471,7 +589,12 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
           return renderGDocsResults(nodeId, result);
         }
         case "slack":
-          return renderSlackResults(nodeId, result);
+          if (node.data.config.action === "SEND_MESSAGE") {
+            return renderSlackResults(nodeId, result);
+          } else if (node.data.config.action === "READ_MESSAGES") {
+            return renderSlackReadResults(nodeId, result);
+          }
+          break;
     }
 
     // Default fallback renderer

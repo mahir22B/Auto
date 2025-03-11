@@ -128,7 +128,8 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "files:read",
       "users:read",
       "im:read",         
-      "mpim:read"         
+      "mpim:read",
+      "channels:history"         
     ],
   },
 };

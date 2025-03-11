@@ -1,6 +1,6 @@
 import { ExecutorContext, ExecutionResult } from "../executors/types";
 import { AbstractExecutor } from "../executors/AbstractExecutor";
-import { SlackConfig } from "./types";
+import { SlackConfig, SlackMessage, SlackReadMessagesResult } from "./types";
 
 interface FileAttachment {
   name: string;
@@ -320,6 +320,201 @@ export class SlackExecutor extends AbstractExecutor {
     return attachments;
   }
 
+  private async readMessages(
+    context: ExecutorContext,
+    config: SlackConfig
+  ): Promise<ExecutionResult> {
+    try {
+      const channelId = config.channelId;
+      
+      if (!channelId) {
+        throw new Error("Channel ID is required");
+      }
+      
+      // Set defaults if not specified
+      const retrievalMethod = config.retrievalMethod || 'count';
+      const messageCount = config.messageCount || 10;
+      const messageInformation = config.messageInformation || ['Messages'];
+      
+      // Build API parameters based on retrieval method
+      let apiParams: string;
+      
+      if (retrievalMethod === 'count') {
+        // Get messages by count
+        apiParams = `channel=${channelId}&limit=${messageCount}`;
+      } else {
+        // Get messages by date range
+        if (!config.startDate || !config.endDate) {
+          throw new Error("Start date and end date are required for date range retrieval");
+        }
+        
+        // Convert dates to unix timestamps
+        const startTimestamp = Math.floor(new Date(config.startDate).getTime() / 1000);
+        const endTimestamp = Math.floor(new Date(config.endDate).getTime() / 1000) + 86399; // Add seconds to include the entire end date
+        
+        apiParams = `channel=${channelId}&oldest=${startTimestamp}&latest=${endTimestamp}`;
+      }
+      
+      // Call the Slack API to get messages
+      const response = await this.makeSlackRequest(
+        `conversations.history?${apiParams}`,
+        { method: "GET" },
+        context
+      );
+      
+      if (!response.ok) {
+        throw new Error(response.error || "Failed to fetch messages");
+      }
+      
+      // Process messages
+      const messages = response.messages || [];
+      
+      if (messages.length === 0) {
+        return {
+          success: true,
+          data: {
+            messages: [],
+            messageCount: 0,
+            displayText: `No messages found in the channel with the specified criteria`
+          }
+        };
+      }
+      
+      // Get channel metadata for display names
+      const channelInfoResponse = await this.makeSlackRequest(
+        `conversations.info?channel=${channelId}`,
+        { method: "GET" },
+        context
+      );
+      
+      const channelName = channelInfoResponse.ok ? channelInfoResponse.channel.name : "unknown-channel";
+      
+      // Create a map to store user IDs to fetch their details
+      const userIds = new Set<string>();
+      messages.forEach((msg: any) => {
+        if (msg.user) userIds.add(msg.user);
+      });
+      
+      // Fetch user details if needed
+      let userMap: Record<string, string> = {};
+      if (messageInformation.includes('Sender Names') && userIds.size > 0) {
+        // Build a user ID to name mapping
+        for (const userId of userIds) {
+          try {
+            const userInfoResponse = await this.makeSlackRequest(
+              `users.info?user=${userId}`,
+              { method: "GET" },
+              context
+            );
+            
+            if (userInfoResponse.ok) {
+              userMap[userId] = userInfoResponse.user.real_name || userInfoResponse.user.name || userId;
+            } else {
+              userMap[userId] = userId; // Fallback to ID if name can't be fetched
+            }
+          } catch (error) {
+            console.error(`Error fetching user info for ${userId}:`, error);
+            userMap[userId] = userId; // Fallback to ID
+          }
+        }
+      }
+      
+      // Extract requested information
+      const result: SlackReadMessagesResult = {
+        messages: []
+      };
+      
+      // Transform raw messages to our format
+      result.messages = messages.map((msg: any) => ({
+        id: msg.client_msg_id || msg.ts,
+        ts: msg.ts,
+        text: msg.text || '',
+        user: msg.user || 'unknown',
+        username: userMap[msg.user] || msg.username || '',
+        threadTs: msg.thread_ts,
+        attachments: msg.attachments || [],
+        files: msg.files || [],
+        channel: channelId,
+        channelName: channelName,
+        permalink: msg.permalink || `https://slack.com/archives/${channelId}/p${msg.ts.replace('.', '')}`
+      }));
+      
+      // Extract selected information based on user's configuration
+      const extractedData: Record<string, any[]> = {};
+      
+      if (messageInformation.includes('Messages')) {
+        extractedData.messageTexts = result.messages.map(msg => msg.text);
+        extractedData.output_messages = result.messages.map(msg => msg.text);
+      }
+      
+      if (messageInformation.includes('Attachment Names')) {
+        extractedData.attachmentNames = result.messages.flatMap(msg => 
+          msg.files?.map(file => file.name) || []
+        );
+        extractedData.output_attachment_names = extractedData.attachmentNames;
+      }
+      
+      if (messageInformation.includes('Thread IDs')) {
+        extractedData.threadIds = result.messages
+          .filter(msg => msg.threadTs)
+          .map(msg => msg.threadTs as string);
+        extractedData.output_thread_ids = extractedData.threadIds;
+      }
+      
+      if (messageInformation.includes('Sender Names')) {
+        extractedData.senderNames = result.messages.map(msg => msg.username);
+        extractedData.output_sender_names = extractedData.senderNames;
+      }
+      
+      if (messageInformation.includes('Thread Links')) {
+        extractedData.threadLinks = result.messages.map(msg => msg.permalink);
+        extractedData.output_thread_links = extractedData.threadLinks;
+      }
+      
+      if (messageInformation.includes('Channel Names')) {
+        extractedData.channelNames = result.messages.map(msg => msg.channelName);
+        extractedData.output_channel_names = extractedData.channelNames;
+      }
+      
+      if (messageInformation.includes('Channel IDs')) {
+        extractedData.channelIds = result.messages.map(msg => msg.channel);
+        extractedData.output_channel_ids = extractedData.channelIds;
+      }
+      
+      // Add output types for type checking
+      const outputTypes: Record<string, string> = {};
+      
+      if (extractedData.output_messages) outputTypes.output_messages = 'string_array';
+      if (extractedData.output_attachment_names) outputTypes.output_attachment_names = 'string_array';
+      if (extractedData.output_thread_ids) outputTypes.output_thread_ids = 'string_array';
+      if (extractedData.output_sender_names) outputTypes.output_sender_names = 'string_array';
+      if (extractedData.output_thread_links) outputTypes.output_thread_links = 'string_array';
+      if (extractedData.output_channel_names) outputTypes.output_channel_names = 'string_array';
+      if (extractedData.output_channel_ids) outputTypes.output_channel_ids = 'string_array';
+      
+      return {
+        success: true,
+        data: {
+          ...result,
+          ...extractedData,
+          messageCount: messages.length,
+          channelName,
+          displayText: `Retrieved ${messages.length} messages from ${channelName}`,
+          _output_types: outputTypes
+        }
+      };
+    } catch (error) {
+      console.error("Error reading Slack messages:", error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : "Failed to read messages",
+          details: error
+        }
+      };
+    }
+  }
+
   async execute(context: ExecutorContext, config: SlackConfig): Promise<ExecutionResult> {
     try {
       switch (config.action) {
@@ -334,6 +529,9 @@ export class SlackExecutor extends AbstractExecutor {
           }
           
           return this.sendMessageWithAttachments(context, config, attachments);
+        }
+        case 'READ_MESSAGES': {
+          return this.readMessages(context, config);
         }
         default:
           return {

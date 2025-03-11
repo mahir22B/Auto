@@ -159,6 +159,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           data.removePortConnections!(`output_${info}`);
         });
       }
+      
 
       // For Sheets reader, check if selectedColumns was changed
       if (
@@ -176,6 +177,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         const removedColumns = oldSelectedColumns.filter(
           (col) => !newSelectedColumns.includes(col)
         );
+
 
         // Clean up connections for removed ports (either input or output depending on the action)
         removedColumns.forEach((column) => {

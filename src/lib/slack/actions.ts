@@ -61,7 +61,7 @@ export const SLACK_ACTIONS: Record<string, ActionConfig> = {
         required: true,
         options: [], // Will be populated dynamically
         placeholder: 'Select a user',
-        refreshable: true, // This is already set correctly
+        refreshable: true,
         dependencies: ['targetType'],
         visibilityCondition: (config) => config.targetType === 'user',
         loadOptions: async (context: any) => {
@@ -121,11 +121,11 @@ export const SLACK_ACTIONS: Record<string, ActionConfig> = {
     ports: {
       inputs: [
         { id: 'input_message', label: 'Message', type: 'string', isActive: true, isListType: false },
-        { id: 'input_threadId', label: 'Thread ID', type: 'string', isActive: false, isListType: false },
+        { id: 'input_threadId', label: 'Thread ID', type: 'string', isActive: true, isListType: false },
         { id: 'input_attachments', label: 'Attachments', type: 'string', isActive: false, isListType: true }
       ],
       outputs: [
-        { id: 'output_threadId', label: 'Thread ID', type: 'string', isActive: true, isListType: false }
+        { id: 'output_threadId', label: 'Posted Thread ID', type: 'string', isActive: true, isListType: false }
       ]
     },
     getDynamicPorts: (config: any) => {
@@ -137,7 +137,181 @@ export const SLACK_ACTIONS: Record<string, ActionConfig> = {
           { id: 'input_attachments', label: 'Attachments', type: 'string', isActive: config.attachmentSource === 'port', isListType: true }
         ],
         outputs: [
-          { id: 'output_threadId', label: 'Thread ID', type: 'string', isActive: true, isListType: false }
+          { id: 'output_threadId', label: 'Posted Thread ID', type: 'string', isActive: true, isListType: false }
+        ]
+      };
+    }
+  },
+  
+  READ_MESSAGES: {
+    id: 'READ_MESSAGES',
+    name: 'Read Messages',
+    description: 'Fetch messages from a Slack channel with filtering options',
+    configFields: [
+      {
+        name: 'channelId',
+        label: 'Channel',
+        type: 'select',
+        required: true,
+        options: [], // Will be populated dynamically
+        placeholder: 'Select a channel',
+        refreshable: true,
+        loadOptions: async (context: any) => {
+          console.log('Loading Slack channels...');
+          if (!context.authState?.tokens?.access_token) {
+            console.error('No access token available');
+            return [];
+          }
+          
+          try {
+            const response = await fetch('/api/slack/channels', {
+              headers: {
+                'Authorization': `Bearer ${context.authState.tokens.access_token}`
+              }
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.error('Error loading channels:', errorData);
+              return [];
+            }
+            
+            return await response.json();
+          } catch (error) {
+            console.error('Error loading channels:', error);
+            return [];
+          }
+        }
+      },
+      {
+        name: 'retrievalMethod',
+        label: 'Retrieval Method',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'count', label: 'By Message Count (Recent Messages)' },
+          { value: 'dateRange', label: 'By Date Range' }
+        ],
+        placeholder: 'Select retrieval method',
+        // Default to 'count'
+      },
+      {
+        name: 'messageCount',
+        label: 'Message Count',
+        type: 'number',
+        required: true,
+        placeholder: 'Number of messages to retrieve',
+        dependencies: ['retrievalMethod'],
+        visibilityCondition: (config) => !config.retrievalMethod || config.retrievalMethod === 'count'
+      },
+      {
+        name: 'startDate',
+        label: 'Start Date',
+        type: 'string', // Using string type for date input
+        required: true,
+        placeholder: 'YYYY-MM-DD',
+        dependencies: ['retrievalMethod'],
+        visibilityCondition: (config) => config.retrievalMethod === 'dateRange'
+      },
+      {
+        name: 'endDate',
+        label: 'End Date',
+        type: 'string', // Using string type for date input
+        required: true,
+        placeholder: 'YYYY-MM-DD',
+        dependencies: ['retrievalMethod'],
+        visibilityCondition: (config) => config.retrievalMethod === 'dateRange'
+      },
+      {
+        name: 'messageInformation',
+        label: 'Message Information',
+        type: 'multiselect',
+        required: true,
+        options: [
+          'Messages',
+          'Attachment Names',
+          'Thread IDs',
+          'Sender Names',
+          'Thread Links',
+          'Channel Names',
+          'Channel IDs'
+        ],
+        placeholder: 'Select information to retrieve'
+      }
+    ],
+    ports: {
+      inputs: [], // No input ports for this node
+      outputs: [
+        { id: 'output_messages', label: 'Messages', type: 'array', isActive: false, isListType: true },
+        { id: 'output_attachment_names', label: 'Attachment Names', type: 'array', isActive: false, isListType: true },
+        { id: 'output_thread_ids', label: 'Thread IDs', type: 'array', isActive: false, isListType: true },
+        { id: 'output_sender_names', label: 'Sender Names', type: 'array', isActive: false, isListType: true },
+        { id: 'output_thread_links', label: 'Thread Links', type: 'array', isActive: false, isListType: true },
+        { id: 'output_channel_names', label: 'Channel Names', type: 'array', isActive: false, isListType: true },
+        { id: 'output_channel_ids', label: 'Channel IDs', type: 'array', isActive: false, isListType: true }
+      ]
+    },
+    getDynamicPorts: (config: any) => {
+      if (!config.messageInformation) {
+        return {
+          inputs: [],
+          outputs: []
+        };
+      }
+      
+      // Create the output ports with appropriate isActive based on selected information
+      return {
+        inputs: [],
+        outputs: [
+          { 
+            id: 'output_messages', 
+            label: 'Messages', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Messages'),
+            isListType: true 
+          },
+          { 
+            id: 'output_attachment_names', 
+            label: 'Attachment Names', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Attachment Names'),
+            isListType: true 
+          },
+          { 
+            id: 'output_thread_ids', 
+            label: 'Thread IDs', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Thread IDs'),
+            isListType: true 
+          },
+          { 
+            id: 'output_sender_names', 
+            label: 'Sender Names', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Sender Names'),
+            isListType: true 
+          },
+          { 
+            id: 'output_thread_links', 
+            label: 'Thread Links', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Thread Links'),
+            isListType: true 
+          },
+          { 
+            id: 'output_channel_names', 
+            label: 'Channel Names', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Channel Names'),
+            isListType: true 
+          },
+          { 
+            id: 'output_channel_ids', 
+            label: 'Channel IDs', 
+            type: 'array', 
+            isActive: config.messageInformation.includes('Channel IDs'),
+            isListType: true 
+          }
         ]
       };
     }
