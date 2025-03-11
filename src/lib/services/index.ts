@@ -117,7 +117,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
   slack: {
     id: "slack",
     name: "Slack",
-    description: "Send messages to Slack channels",
+    description: "Send and receive Slack messages",
     icon: "/icons/slack.svg",
     actions: SLACK_ACTIONS,
     authScopes: [

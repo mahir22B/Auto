@@ -638,7 +638,9 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
 
           return (
             <div key={nodeId} className="bg-white rounded-lg shadow">
-              <div className="p-4 flex items-start justify-between">
+              <div className="p-4 flex items-start justify-between cursor-pointer select-none"
+               onClick={() => toggleNodeExpansion(nodeId)}
+              >
                 <div className="flex items-center">
                   {/* Service-specific icons */}
                   {node.type === "gmail" && (
@@ -698,13 +700,13 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                   </div>
                 </div>
 
-                <button onClick={() => toggleNodeExpansion(nodeId)}>
+                <div>
                   {isExpanded ? (
                     <ChevronUp className="h-5 w-5 text-gray-400" />
                   ) : (
                     <ChevronDown className="h-5 w-5 text-gray-400" />
                   )}
-                </button>
+                </div>
               </div>
 
               {isExpanded && (
