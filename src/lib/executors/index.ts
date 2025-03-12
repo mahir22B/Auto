@@ -6,6 +6,8 @@ import { SheetReader } from '../sheets/executor';
 import { GDriveExecutor } from '../gdrive/executor';
 import { GDocsExecutor } from '../gdocs/executor';
 import { SlackExecutor } from '../slack/executor';
+import { AIExecutor } from '../ai/executor'; 
+
 
 
 
@@ -15,6 +17,7 @@ ExecutorRegistry.register('sheets', SheetReader);
 ExecutorRegistry.register('gdrive', GDriveExecutor);
 ExecutorRegistry.register('gdocs', GDocsExecutor);
 ExecutorRegistry.register('slack', SlackExecutor);
+ExecutorRegistry.register('ai', AIExecutor);
 
 
 

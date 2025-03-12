@@ -31,11 +31,11 @@ interface FlowNodeProps {
     config: any;
     onDelete: (id: string) => void;
     service: string;
-    authState: {
+    authState?: {
       isAuthenticated: boolean;
       tokens?: any;
     };
-    onAuth: () => void;
+    onAuth?: () => void;
     portTypes?: PortTypeInfo[];
     removePortConnections?: (portId: string) => void;
     updateNodeConfig: (config: any) => void;
@@ -56,8 +56,12 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const [nodeWidth, setNodeWidth] = useState(320); // Default width
 
   // Add state for dynamic options loading
-  const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>({});
-  const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({});
+  const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>(
+    {}
+  );
+  const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const serviceConfig = SERVICES[data.service];
   const { name, icon, actions } = serviceConfig;
@@ -69,25 +73,28 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   }, [data.config]);
 
   // Function to handle dynamic options loading
-  const handleOptionLoad = useCallback(async (field: any) => {
-    if (!field.loadOptions) return;
-    
-    setLoadingOptions(prev => ({ ...prev, [field.name]: true }));
-    
-    try {
-      // Call the loadOptions function with the necessary context
-      const options = await field.loadOptions({
-        authState: data.authState,
-        config
-      });
-      
-      setDynamicOptions(prev => ({ ...prev, [field.name]: options }));
-    } catch (error) {
-      console.error(`Error loading options for ${field.name}:`, error);
-    } finally {
-      setLoadingOptions(prev => ({ ...prev, [field.name]: false }));
-    }
-  }, [data.authState, config]);
+  const handleOptionLoad = useCallback(
+    async (field: any) => {
+      if (!field.loadOptions) return;
+
+      setLoadingOptions((prev) => ({ ...prev, [field.name]: true }));
+
+      try {
+        // Call the loadOptions function with the necessary context
+        const options = await field.loadOptions({
+          authState: data.authState,
+          config,
+        });
+
+        setDynamicOptions((prev) => ({ ...prev, [field.name]: options }));
+      } catch (error) {
+        console.error(`Error loading options for ${field.name}:`, error);
+      } finally {
+        setLoadingOptions((prev) => ({ ...prev, [field.name]: false }));
+      }
+    },
+    [data.authState, config]
+  );
 
   // Calculate port spacing based on the number of ports
   const calculatePortSpacing = (portCount) => {
@@ -159,7 +166,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           data.removePortConnections!(`output_${info}`);
         });
       }
-      
 
       // For Sheets reader, check if selectedColumns was changed
       if (
@@ -178,7 +184,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           (col) => !newSelectedColumns.includes(col)
         );
 
-
         // Clean up connections for removed ports (either input or output depending on the action)
         removedColumns.forEach((column) => {
           if (config.action === "READ_SHEET") {
@@ -194,34 +199,38 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     }
 
     // Update ports when relevant selections change
-// Update ports when relevant selections change
-if (
-  (updates.selectedColumns && data.service === "sheets") ||
-  (updates.emailInformation && data.service === "gmail") ||
-  // Add this condition to update ports when maxResults changes for Gmail
-  (updates.maxResults !== undefined &&
-    data.service === "gmail" &&
-    config.action === "READ_UNREAD") ||
-  // Add this condition to update ports when messageInformation changes for Slack
-  (updates.messageInformation &&
-    data.service === "slack" &&
-    config.action === "READ_MESSAGES")
-) {
-  if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
-    const ports = actions[newConfig.action].getDynamicPorts(newConfig);
-    data.updateNodeConfig({
-      ...newConfig,
-      ports,
-    });
-    return;
-  }
-}
+    if (
+      (updates.selectedColumns && data.service === "sheets") ||
+      (updates.emailInformation && data.service === "gmail") ||
+      (updates.maxResults !== undefined &&
+        data.service === "gmail" &&
+        config.action === "READ_UNREAD") ||
+      (updates.messageInformation &&
+        data.service === "slack" &&
+        config.action === "READ_MESSAGES")
+    ) {
+      if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
+        const ports = actions[newConfig.action].getDynamicPorts(newConfig);
+        data.updateNodeConfig({
+          ...newConfig,
+          ports,
+        });
+        return;
+      }
+    }
 
     data.updateNodeConfig(newConfig);
   };
 
   const handleActionSelect = async (action: string) => {
-    if (!data.authState.isAuthenticated) {
+    // Special handling for AI service which doesn't need authentication
+    if (data.service === "ai") {
+      handleConfigChange({ action });
+      return;
+    }
+
+    // Regular auth handling for other services
+    if (!data.authState?.isAuthenticated) {
       localStorage.setItem(
         `${data.service}_pending_action`,
         JSON.stringify({
@@ -238,7 +247,7 @@ if (
 
   // Handle post-auth configuration
   useEffect(() => {
-    if (data.authState.isAuthenticated && showAuthPrompt) {
+    if (data.authState?.isAuthenticated && showAuthPrompt) {
       const pendingAction = localStorage.getItem(
         `${data.service}_pending_action`
       );
@@ -256,7 +265,7 @@ if (
         }
       }
     }
-  }, [data.authState.isAuthenticated, data.service, id, showAuthPrompt]);
+  }, [data.authState?.isAuthenticated, data.service, id, showAuthPrompt]);
 
   // Update ports when configuration changes
   useEffect(() => {
@@ -604,6 +613,21 @@ if (
           {actionName && (
             <div className="text-sm text-gray-500">{actionName}</div>
           )}
+          {data.service === "ai" && config.model && (
+            <div className="text-xs text-gray-400 flex items-center mt-1 gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {config.model.includes("anthropic") ? (
+                <span className="text-purple-600 font-medium">Anthropic</span>
+              ) : config.model.includes("openai") ? (
+                <span className="text-emerald-600 font-medium">OpenAI</span>
+              ) : (
+                <span className="font-medium">
+                  {config.model.split("/")[0]}
+                </span>
+              )}
+              <span className="opacity-60">{config.model.split("/")[1]}</span>
+            </div>
+          )}
         </div>
       </div>
       <Button
@@ -637,27 +661,37 @@ if (
 
   const isFieldVisible = (field: any, config: any): boolean => {
     // If no dependencies or visibilityCondition specified, field is always visible
-    if ((!field.dependencies || field.dependencies.length === 0) && !field.visibilityCondition) {
+    if (
+      (!field.dependencies || field.dependencies.length === 0) &&
+      !field.visibilityCondition
+    ) {
       return true;
     }
 
     // First check dependencies
-    const dependenciesSatisfied = !field.dependencies || field.dependencies.every((dep: string) => {
-      return (
-        config[dep] !== undefined && config[dep] !== null && config[dep] !== ""
-      );
-    });
-    
+    const dependenciesSatisfied =
+      !field.dependencies ||
+      field.dependencies.every((dep: string) => {
+        return (
+          config[dep] !== undefined &&
+          config[dep] !== null &&
+          config[dep] !== ""
+        );
+      });
+
     // If dependencies aren't satisfied, return false immediately
     if (!dependenciesSatisfied) {
       return false;
     }
-    
+
     // If there's a visibilityCondition function, evaluate it
-    if (field.visibilityCondition && typeof field.visibilityCondition === 'function') {
+    if (
+      field.visibilityCondition &&
+      typeof field.visibilityCondition === "function"
+    ) {
       return field.visibilityCondition(config);
     }
-    
+
     // If we get here, dependencies are satisfied and there's no visibilityCondition
     return true;
   };
@@ -768,30 +802,66 @@ if (
                             )
                           ) : (
                             // If not using loadOptions, use static options as before
-                            (field.name === "searchColumn" && config.availableColumns
+                            // Updated code
+                            (field.name === "searchColumn" &&
+                            config.availableColumns
                               ? config.availableColumns
                               : field.options
                             )?.map(
-                              (option: { value: string; label: string } | string) => (
-                                <SelectItem
-                                  key={
-                                    typeof option === "string" ? option : option.value
-                                  }
-                                  value={
-                                    typeof option === "string" ? option : option.value
-                                  }
-                                >
-                                  {typeof option === "string"
-                                    ? option
-                                    : option.label}
-                                </SelectItem>
-                              )
+                              (
+                                option:
+                                  | {
+                                      value: string;
+                                      label: string;
+                                      isHeader?: boolean;
+                                      badge?: string;
+                                    }
+                                  | string
+                              ) => {
+                                // Handle simple string options
+                                if (typeof option === "string") {
+                                  return (
+                                    <SelectItem key={option} value={option}>
+                                      {option}
+                                    </SelectItem>
+                                  );
+                                }
+
+                                // Handle header items
+                                if (option.isHeader) {
+                                  return (
+                                    <div
+                                      key={option.value}
+                                      className="px-2 py-1.5 text-sm font-semibold text-gray-500 border-b"
+                                    >
+                                      {option.label}
+                                    </div>
+                                  );
+                                }
+
+                                // Handle regular items with optional badge
+                                return (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{option.label}</span>
+                                      {option.badge && (
+                                        <span className="ml-2 px-1.5 py-0.5 text-xs bg-pink-100 text-pink-600 rounded">
+                                          {option.badge}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                );
+                              }
                             )
                           )}
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     {/* Add refresh button for fields that support it */}
                     {field.refreshable && (
                       <Button
@@ -803,7 +873,9 @@ if (
                         title={`Refresh ${field.label.toLowerCase()}`}
                       >
                         <RefreshCw
-                          className={`h-4 w-4 ${loadingOptions[field.name] ? 'animate-spin' : ''}`}
+                          className={`h-4 w-4 ${
+                            loadingOptions[field.name] ? "animate-spin" : ""
+                          }`}
                         />
                       </Button>
                     )}
@@ -816,7 +888,7 @@ if (
                           const newConfig = await field.onValueSelect(
                             fileDetails,
                             config,
-                            { tokens: data.authState.tokens }
+                            { tokens: data.authState?.tokens }
                           );
                           data.updateNodeConfig(newConfig);
                         } else {
@@ -938,7 +1010,6 @@ if (
       </div>
     </Card>
   );
-  
 };
 
 export default FlowNode;

@@ -112,8 +112,8 @@ export class WorkflowExecutor {
         const executor = ExecutorRegistry.getExecutor(node.type);
 
         // Get auth tokens
-        const tokens = authState[node.type]?.tokens;
-        if (!tokens) {
+        const tokens = node.type === 'ai' ? {} : authState[node.type]?.tokens;
+        if (!tokens && node.type !== 'ai') {
           throw new Error(`Please authenticate with ${node.type}`);
         }
 

@@ -3,6 +3,8 @@ import { GDRIVE_ACTIONS } from "../gdrive/actions";
 import { SHEETS_ACTIONS } from "../sheets/actions";
 import { GDOCS_ACTIONS } from "../gdocs/actions";
 import { SLACK_ACTIONS } from "../slack/actions";
+import { AI_ACTIONS } from "../ai/actions"; // Add this import
+
 
 export interface Port {
   id: string;
@@ -62,6 +64,14 @@ export interface ServiceConfig {
 }
 
 export const SERVICES: Record<string, ServiceConfig> = {
+  ai: {
+    id: "ai",
+    name: "Use AI",
+    description: "Leverage AI for your workflows",
+    icon: "/icons/ai.svg", // You'll need to create this icon
+    actions: AI_ACTIONS,
+    authScopes: [], // No OAuth scopes needed for OpenRouter
+  },
   gmail: {
     id: "gmail",
     name: "Gmail",
@@ -135,4 +145,5 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "team:read"          
     ],
   },
+
 };

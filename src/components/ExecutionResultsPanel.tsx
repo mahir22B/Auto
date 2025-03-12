@@ -138,11 +138,6 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
         
         <div className="bg-gray-50 p-3 rounded">
           <div className="flex items-center gap-2 mb-2">
-            {/* <img 
-              src="/icons/slack.svg" 
-              alt="Slack" 
-              className="w-5 h-5" 
-            /> */}
             <span className="font-medium">Message sent successfully</span>
           </div>
           
@@ -236,12 +231,6 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                   )}
                 </div>
               ))}
-              
-              {/* {messages.length > 5 && (
-                <div className="text-center text-sm text-gray-500 pt-2">
-                  {messages.length - 5} more messages not shown
-                </div>
-              )} */}
             </div>
           </div>
           
@@ -326,6 +315,64 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
   
+  const renderAIResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to get AI response"}
+        </div>
+      );
+    }
+    
+    const aiResponse = result.data.output_response;
+    const tokensUsed = result.data.output_tokens;
+    const model = result.data.model;
+    
+    // Helper function to determine provider from model name
+    const getProviderDetails = (modelString) => {
+      if (!modelString) return { name: 'AI', color: 'gray' };
+      
+      if (modelString.includes('openai')) {
+        return { name: 'OpenAI', color: 'green', icon: '/icons/openai.svg' };
+      } else if (modelString.includes('anthropic')) {
+        return { name: 'Anthropic', color: 'purple', icon: '/icons/anthropic.svg' };
+      } else if (modelString.includes('google')) {
+        return { name: 'Google', color: 'blue', icon: '/icons/google.svg' };
+      } else if (modelString.includes('perplexity')) {
+        return { name: 'Perplexity', color: 'indigo', icon: '/icons/ai.svg' };
+      } else if (modelString.includes('deepseek')) {
+        return { name: 'DeepSeek', color: 'orange', icon: '/icons/ai.svg' };
+      }
+      
+      return { name: modelString.split('/')[0], color: 'gray', icon: '/icons/ai.svg' };
+    };
+    
+    const provider = getProviderDetails(model);
+    
+    return (
+      <div className="space-y-4 p-4">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`text-${provider.color}-600 font-medium flex items-center gap-1`}>
+              <div className={`w-2 h-2 bg-${provider.color}-500 rounded-full`}></div>
+              {provider.name}
+            </span>
+            <span className="text-sm text-gray-500">
+              {model ? model.split('/')[1] : 'Unknown model'}
+            </span>
+          </div>
+          
+          <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md border border-gray-100 mb-3 max-h-96 overflow-y-auto">
+            {aiResponse}
+          </div>
+          
+          <div className="flex justify-between items-center text-xs text-gray-500">
+            {/* <div>Tokens used: {tokensUsed || 'Unknown'}</div> */}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
     switch (node.type) {
@@ -629,6 +676,12 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
             return renderSlackCanvasResults(nodeId, result);
           }
           break;
+          
+        case "ai":
+          if (node.data.config.action === "ASK_AI") {
+            return renderAIResults(nodeId, result);
+          }
+          break;
     }
 
     // Default fallback renderer
@@ -722,6 +775,16 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                      <img
                        src="/icons/slack.svg"
                        alt="Slack"
+                       width="24"
+                       height="24"
+                     />
+                   </div>
+                  )}
+                  {node.type === "ai" && (
+                     <div className="mr-3 text-purple-600">
+                     <img
+                       src="/icons/ai.svg"
+                       alt="AI"
                        width="24"
                        height="24"
                      />

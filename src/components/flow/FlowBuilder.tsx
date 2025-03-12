@@ -23,11 +23,12 @@ import ExecutionResultsPanel from "../ExecutionResultsPanel";
 import { areTypesCompatible } from "@/lib/types/PortTypes";
 
 const nodeTypes = {
+  ai: FlowNode,
   gdrive: FlowNode,
   gmail: FlowNode,
   sheets: FlowNode,
-  gdocs:FlowNode,
-  slack:FlowNode
+  gdocs: FlowNode,
+  slack: FlowNode,
 };
 
 const edgeTypes = {
@@ -341,14 +342,16 @@ const FlowBuilder = ({
       </Button>
 
       {/* Run Workflow Button */}
-      <Button
-        className="absolute top-8 right-8 z-40 bg-green-600 hover:bg-green-700"
-        onClick={handleExecuteWorkflow}
-        disabled={isExecuting || nodes.length === 0}
-      >
-        <PlayCircle className="mr-2 h-4 w-4" />
-        {isExecuting ? 'Running...' : 'Run Workflow'}
-      </Button>
+      <div className="absolute top-8 right-8 z-40 flex gap-2">
+        <Button
+          className="bg-green-600 hover:bg-green-700"
+          onClick={handleExecuteWorkflow}
+          disabled={isExecuting || nodes.length === 0}
+        >
+          <PlayCircle className="mr-2 h-4 w-4" />
+          {isExecuting ? 'Running...' : 'Run Workflow'}
+        </Button>
+      </div>
       
       {/* Results Button - Only shown when results panel is closed and we have results */}
       {!showResultsPanel && Object.keys(executionResults).length > 0 && (
