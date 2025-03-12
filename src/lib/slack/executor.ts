@@ -323,160 +323,187 @@ export class SlackExecutor extends AbstractExecutor {
   }
 
 
-private async createCanvas(
-  context: ExecutorContext,
-  config: SlackConfig
-): Promise<ExecutionResult> {
-  try {
-    // Get inputs from ports or config
-    const canvasTitle = this.getInputValueOrConfig(context, 'input_canvasTitle', config, 'canvasTitle');
-    const canvasContent = this.getInputValueOrConfig(context, 'input_canvasContent', config, 'canvasContent');
-    const channelId = config.channelId;
-    
-    if (!channelId) {
-      throw new Error("Channel ID is required");
-    }
-    
-    if (!canvasTitle) {
-      throw new Error("Canvas title is required");
-    }
-    
-    if (!canvasContent) {
-      throw new Error("Canvas content is required");
-    }
-    
-    console.log("Creating Slack canvas with title:", canvasTitle);
-    
-    // Create the canvas using canvases.create endpoint
-    const createPayload = {
-      title: canvasTitle,
-      document_content: {
-        type: "markdown",
-        markdown: canvasContent
-      }
-    };
-    
-    console.log("Canvas create payload:", createPayload);
-    
-    const createResponse = await this.makeSlackRequest(
-      "canvases.create",
-      {
-        method: "POST",
-        body: JSON.stringify(createPayload)
-      },
-      context
-    );
-    
-    if (!createResponse.ok) {
-      throw new Error(createResponse.error || "Failed to create canvas");
-    }
-    
-    const canvasId = createResponse.canvas_id;
-    
-    if (!canvasId) {
-      throw new Error("Canvas ID missing in response");
-    }
-    
-    console.log("Canvas created successfully with ID:", canvasId);
-    
-    // Get team information for URL formation
-    let teamId = null;
-    let workspaceDomain = null;
-    
+  private async createCanvas(
+    context: ExecutorContext,
+    config: SlackConfig
+  ): Promise<ExecutionResult> {
     try {
-      console.log("Getting team information");
-      const teamInfoResponse = await this.makeSlackRequest(
-        "team.info",
-        { method: "GET" },
+      // Get inputs from ports or config
+      const canvasTitle = this.getInputValueOrConfig(context, 'input_canvasTitle', config, 'canvasTitle');
+      const canvasContent = this.getInputValueOrConfig(context, 'input_canvasContent', config, 'canvasContent');
+      const channelId = config.channelId;
+      const accessLevel = config.accessLevel || 'read'; // Default to read if not specified
+      console.log("ACCESS", accessLevel)
+
+      if (!channelId) {
+        throw new Error("Channel ID is required");
+      }
+      
+      if (!canvasTitle) {
+        throw new Error("Canvas title is required");
+      }
+      
+      if (!canvasContent) {
+        throw new Error("Canvas content is required");
+      }
+      
+      console.log("Creating Slack canvas with title:", canvasTitle);
+      
+      // Create the canvas using canvases.create endpoint
+      const createPayload = {
+        title: canvasTitle,
+        document_content: {
+          type: "markdown",
+          markdown: canvasContent
+        }
+      };
+      
+      console.log("Canvas create payload:", createPayload);
+      
+      const createResponse = await this.makeSlackRequest(
+        "canvases.create",
+        {
+          method: "POST",
+          body: JSON.stringify(createPayload)
+        },
         context
       );
       
-      if (teamInfoResponse.ok && teamInfoResponse.team) {
-        teamId = teamInfoResponse.team.id;
-        workspaceDomain = teamInfoResponse.team.domain;
-        console.log(`Got team info: ID=${teamId}, domain=${workspaceDomain}`);
-      } else {
-        console.log("Could not get team info:", teamInfoResponse.error || "Unknown error");
-        
-        // Fallbacks
-        if (context.tokens.team_id) {
-          teamId = context.tokens.team_id;
-          console.log("Using team_id from tokens:", teamId);
-        }
+      if (!createResponse.ok) {
+        throw new Error(createResponse.error || "Failed to create canvas");
       }
-    } catch (err) {
-      console.error("Error getting team info:", err);
-    }
-    
-    // Generate canvas URL
-    let canvasUrl;
-    if (teamId && workspaceDomain) {
-      canvasUrl = `https://${workspaceDomain}.slack.com/docs/${teamId}/${canvasId}`;
-    } else if (workspaceDomain) {
-      canvasUrl = `https://${workspaceDomain}.slack.com/docs/${canvasId}`;
-    } else if (teamId) {
-      canvasUrl = `https://slack.com/docs/${teamId}/${canvasId}`;
-    } else {
-      canvasUrl = `https://slack.com/docs/${canvasId}`;
-    }
-    
-    console.log("Canvas URL:", canvasUrl);
-    
-    // Share the canvas by posting its URL in a message
-    const shareMessagePayload = {
-      channel: channelId,
-      text: `Canvas created and shared successfully: ${canvasUrl}`,
-      blocks: [
-        {
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": `<${canvasUrl}|${canvasTitle}>`
+      
+      const canvasId = createResponse.canvas_id;
+      
+      if (!canvasId) {
+        throw new Error("Canvas ID missing in response");
+      }
+      
+      console.log("Canvas created successfully with ID:", canvasId);
+      
+      // Get team information for URL formation
+      let teamId = null;
+      let workspaceDomain = null;
+      
+      try {
+        console.log("Getting team information");
+        const teamInfoResponse = await this.makeSlackRequest(
+          "team.info",
+          { method: "GET" },
+          context
+        );
+        
+        if (teamInfoResponse.ok && teamInfoResponse.team) {
+          teamId = teamInfoResponse.team.id;
+          workspaceDomain = teamInfoResponse.team.domain;
+          console.log(`Got team info: ID=${teamId}, domain=${workspaceDomain}`);
+        } else {
+          console.log("Could not get team info:", teamInfoResponse.error || "Unknown error");
+          
+          // Fallbacks
+          if (context.tokens.team_id) {
+            teamId = context.tokens.team_id;
+            console.log("Using team_id from tokens:", teamId);
           }
         }
-      ]
-    };
-    
-    const postResponse = await this.makeSlackRequest(
-      "chat.postMessage",
-      {
-        method: "POST",
-        body: JSON.stringify(shareMessagePayload)
-      },
-      context
-    );
-    
-    if (!postResponse.ok) {
-      console.warn("Failed to share canvas via message:", postResponse.error);
-    } else {
-      console.log("Canvas shared via message successfully");
-    }
-    
-    return {
-      success: true,
-      data: {
-        output_canvasLink: canvasUrl,
-        canvasId: canvasId,
-        title: canvasTitle,
-        content: canvasContent,
-        channelId: channelId,
-        displayText: `${canvasUrl}`,
-        _output_types: {
-          output_canvasLink: 'string'
+      } catch (err) {
+        console.error("Error getting team info:", err);
+      }
+      
+      // Generate canvas URL
+      let canvasUrl;
+      if (teamId && workspaceDomain) {
+        canvasUrl = `https://${workspaceDomain}.slack.com/docs/${teamId}/${canvasId}`;
+      } else if (workspaceDomain) {
+        canvasUrl = `https://${workspaceDomain}.slack.com/docs/${canvasId}`;
+      } else if (teamId) {
+        canvasUrl = `https://slack.com/docs/${teamId}/${canvasId}`;
+      } else {
+        canvasUrl = `https://slack.com/docs/${canvasId}`;
+      }
+      
+      console.log("Canvas URL:", canvasUrl);
+      
+      // Share the canvas by posting its URL in a message
+      const shareMessagePayload = {
+        channel: channelId,
+        text: `Canvas created and shared successfully: ${canvasUrl}`,
+        blocks: [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": `<${canvasUrl}|${canvasTitle}>`
+            }
+          }
+        ]
+      };
+      
+      const postResponse = await this.makeSlackRequest(
+        "chat.postMessage",
+        {
+          method: "POST",
+          body: JSON.stringify(shareMessagePayload)
+        },
+        context
+      );
+      
+      if (!postResponse.ok) {
+        console.warn("Failed to share canvas via message:", postResponse.error);
+      } else {
+        console.log("Canvas shared via message successfully");
+      }
+      
+      // Set canvas access permissions
+      console.log(`Setting canvas access level to: ${accessLevel}`);
+      
+      const accessPayload = {
+        canvas_id: canvasId,
+        channel_ids: [channelId],
+        access_level: accessLevel // Using the access level from the config
+      };
+      
+      const accessResponse = await this.makeSlackRequest(
+        "canvases.access.set",
+        {
+          method: "POST",
+          body: JSON.stringify(accessPayload)
+        },
+        context
+      );
+      
+      if (!accessResponse.ok) {
+        console.warn("Failed to set canvas access permissions:", accessResponse.error);
+      } else {
+        console.log(`Canvas access level set to ${accessLevel} successfully`);
+      }
+      
+      return {
+        success: true,
+        data: {
+          output_canvasLink: canvasUrl,
+          canvasId: canvasId,
+          title: canvasTitle,
+          content: canvasContent,
+          channelId: channelId,
+          accessLevel: accessLevel,
+          displayText: `${canvasUrl}`,
+          _output_types: {
+            output_canvasLink: 'string'
+          }
         }
-      }
-    };
-  } catch (error) {
-    console.error("Error creating Slack canvas:", error);
-    return {
-      success: false,
-      error: {
-        message: error instanceof Error ? error.message : "Failed to create canvas",
-        details: error
-      }
-    };
+      };
+    } catch (error) {
+      console.error("Error creating Slack canvas:", error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : "Failed to create canvas",
+          details: error
+        }
+      };
+    }
   }
-}
   async execute(context: ExecutorContext, config: SlackConfig): Promise<ExecutionResult> {
     try {
       console.log("Executing Slack action:", config.action);

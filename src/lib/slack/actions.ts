@@ -360,7 +360,7 @@ export const SLACK_ACTIONS: Record<string, ActionConfig> = {
         required: true,
         options: [
           { value: 'read', label: 'Read' },
-          // { value: 'write', label: 'Write' }
+          { value: 'write', label: 'Write' }
         ],
         placeholder: 'Select access level'
       }
