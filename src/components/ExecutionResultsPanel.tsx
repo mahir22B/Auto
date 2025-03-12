@@ -293,6 +293,38 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
       </div>
     );
   };
+
+  const renderSlackCanvasResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to create canvas"}
+        </div>
+      );
+    }
+  
+    // Get the URL from the result
+    const canvasUrl = result.data.output_canvasLink;
+    const canvasTitle = result.data.title;
+  
+    return (
+      <div className="p-4">
+        <div className="bg-green-50 rounded-lg border border-green-200 p-4 flex flex-col items-center">
+          <div className="text-green-700 font-medium text-center mb-2">
+            Canvas created and shared successfully:
+          </div>
+          <a 
+            href={canvasUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline break-all"
+          >
+            {canvasUrl}
+          </a>
+        </div>
+      </div>
+    );
+  };
   
 
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
@@ -593,6 +625,8 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
             return renderSlackResults(nodeId, result);
           } else if (node.data.config.action === "READ_MESSAGES") {
             return renderSlackReadResults(nodeId, result);
+          } else if (node.data.config.action === "CANVAS_WRITER") {
+            return renderSlackCanvasResults(nodeId, result);
           }
           break;
     }

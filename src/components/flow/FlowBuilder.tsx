@@ -378,9 +378,10 @@ const FlowBuilder = ({
       )}
 
       {/* Services Sidebar */}
+
       {showSidebar && (
-        <div className="absolute left-8 top-20 z-40 bg-white rounded-lg shadow-[0_4px_24px_0_rgba(0,0,0,0.12)] w-96">
-          <div className="p-4">
+        <div className="absolute left-8 top-20 z-40 bg-white rounded-lg shadow-[0_4px_24px_0_rgba(0,0,0,0.12)] w-96 max-h-[calc(100vh-160px)] flex flex-col">
+          <div className="p-4 border-b">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium">Add Node</h3>
               <Button
@@ -396,16 +397,18 @@ const FlowBuilder = ({
             <Input
               type="search"
               placeholder="Search services..."
-              className="mb-4"
+              className="mb-1"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
 
-            <div className="space-y-2">
+          <div className="overflow-y-auto overflow-x-hidden p-4 flex-1">
+            <div className="space-y-3">
               {filteredServices.map((service) => (
                 <div
                   key={service.id}
-                  className="p-6 border rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+                  className="p-5 border rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors"
                   draggable
                   onClick={() => onNodeClick(service)}
                   onDragStart={(e) => {
@@ -414,7 +417,7 @@ const FlowBuilder = ({
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <img src={service.icon} alt="" className="w-12 h-12" />
+                    <img src={service.icon} alt="" className="w-10 h-10" />
                     <div>
                       <div className="font-medium">{service.name}</div>
                       <div className="text-sm text-gray-500">

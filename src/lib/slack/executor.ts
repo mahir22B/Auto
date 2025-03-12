@@ -1,12 +1,8 @@
+// src/lib/slack/executor.ts
+
 import { ExecutorContext, ExecutionResult } from "../executors/types";
 import { AbstractExecutor } from "../executors/AbstractExecutor";
-import { SlackConfig, SlackMessage, SlackReadMessagesResult } from "./types";
-
-interface FileAttachment {
-  name: string;
-  content: ArrayBuffer | string;
-  type: string;
-}
+import { SlackConfig, SlackMessage, SlackReadMessagesResult, SlackCanvasResult } from "./types";
 
 export class SlackExecutor extends AbstractExecutor {
   private async makeSlackRequest(endpoint: string, options: RequestInit, context: ExecutorContext) {
@@ -39,31 +35,6 @@ export class SlackExecutor extends AbstractExecutor {
     }
   }
 
-  private async uploadFileViaProxy(formData: FormData, context: ExecutorContext) {
-    try {
-      // Create a new FormData to send to our proxy
-      const proxyFormData = new FormData();
-      
-      // Add token separately
-      proxyFormData.append('token', context.tokens.access_token);
-      
-      // Add all other form data fields
-      for (const [key, value] of formData.entries()) {
-        proxyFormData.append(key, value);
-      }
-      
-      const response = await fetch('/api/slack/upload', {
-        method: 'POST',
-        body: proxyFormData
-      });
-      
-      return response.json();
-    } catch (error) {
-      console.error('Error uploading file via proxy:', error);
-      throw new Error(`File upload failed: ${error.message}`);
-    }
-  }
-
   private async getChannels(context: ExecutorContext): Promise<Array<{ id: string; name: string }>> {
     try {
       const response = await this.makeSlackRequest(
@@ -86,18 +57,17 @@ export class SlackExecutor extends AbstractExecutor {
     }
   }
 
-  private async sendMessageWithAttachments(
+  private async sendMessage(
     context: ExecutorContext,
-    config: SlackConfig,
-    attachments: FileAttachment[]
+    config: SlackConfig
   ): Promise<ExecutionResult> {
     try {
       // Prepare message params
       const message = this.getInputValueOrConfig(context, 'input_message', config, 'message');
       const threadId = this.getInputValueOrConfig(context, 'input_threadId', config, 'threadId');
       
-      if (!message && attachments.length === 0) {
-        throw new Error("Message or attachments required");
+      if (!message) {
+        throw new Error("Message is required");
       }
 
       // Get target ID based on target type (channel or user)
@@ -112,7 +82,7 @@ export class SlackExecutor extends AbstractExecutor {
 
       const messageParams: any = {
         channel: targetId, // Slack API uses 'channel' param even for direct messages
-        text: message || "Attached file(s)",
+        text: message,
       };
 
       // Add thread_ts if provided
@@ -120,204 +90,41 @@ export class SlackExecutor extends AbstractExecutor {
         messageParams.thread_ts = threadId;
       }
 
-      // If no attachments, just send the regular message
-      if (attachments.length === 0) {
-        const response = await this.makeSlackRequest(
-          "chat.postMessage",
-          {
-            method: "POST",
-            body: JSON.stringify(messageParams)
-          },
-          context
-        );
-
-        if (!response.ok) {
-          throw new Error(response.error || "Failed to send message");
-        }
-
-        return {
-          success: true,
-          data: {
-            output_threadId: response.ts,
-            channel: response.channel,
-            message: message,
-            displayText: `Message sent to ${targetType === 'channel' ? 'channel' : 'user'}`,
-            _output_types: {
-              output_threadId: 'string'
-            }
-          }
-        };
-      }
-
-      // Otherwise, use the new two-step file upload for each attachment via proxy
-      const uploadResults = await Promise.all(
-        attachments.map(async (file, index) => {
-          // Create FormData for file upload
-          const formData = new FormData();
-          formData.append('channels', targetId); // Note: API expects channel_id but we handle this in the proxy
-          formData.append('filename', file.name);
-          
-          // Convert content to Blob if it's ArrayBuffer
-          let fileBlob;
-          if (file.content instanceof ArrayBuffer) {
-            fileBlob = new Blob([file.content], { type: file.type });
-          } else if (typeof file.content === 'string') {
-            // If it's base64, convert to Blob
-            const base64Content = file.content.replace(/^data:.*?;base64,/, '');
-            const binaryContent = atob(base64Content);
-            const uint8Array = new Uint8Array(binaryContent.length);
-            for (let i = 0; i < binaryContent.length; i++) {
-              uint8Array[i] = binaryContent.charCodeAt(i);
-            }
-            fileBlob = new Blob([uint8Array], { type: file.type });
-          } else {
-            throw new Error(`Unsupported file content type for ${file.name}`);
-          }
-          
-          formData.append('file', fileBlob);
-          
-          // Add thread_ts if in a thread
-          if (threadId) {
-            formData.append('thread_ts', threadId);
-          }
-          
-          // Add initial_comment if this is the first file and we have a message
-          if (index === 0 && message) {
-            formData.append('initial_comment', message);
-          }
-          
-          // Use proxy for file upload instead of direct API call
-          const data = await this.uploadFileViaProxy(formData, context);
-          
-          if (!data.ok) {
-            throw new Error(`Failed to upload file ${file.name}: ${data.error || 'Unknown error'}`);
-          }
-          
-          return data;
-        })
+      const response = await this.makeSlackRequest(
+        "chat.postMessage",
+        {
+          method: "POST",
+          body: JSON.stringify(messageParams)
+        },
+        context
       );
 
-      // Return the thread ID from the first upload (or from the last if multiple)
-      const lastUpload = uploadResults[uploadResults.length - 1];
-      
-      // In the V2 API, the files property contains an array of file objects
-      const resultThreadId = 
-        // Try to get thread TS from various possible locations in the response
-        lastUpload.files?.[0]?.shares?.public?.[targetId]?.[0]?.ts ||
-        lastUpload.files?.[0]?.ts ||
-        lastUpload.files?.[0]?.id ||
-        '';
+      if (!response.ok) {
+        throw new Error(response.error || "Failed to send message");
+      }
 
-      const fileIds = uploadResults.flatMap(r => {
-        if (r.files && r.files.length > 0) {
-          return r.files.map((f: any) => f.id);
-        }
-        return [];
-      }).filter(Boolean);
-      
       return {
         success: true,
         data: {
-          output_threadId: resultThreadId,
-          channel: targetId,
+          output_threadId: response.ts,
+          channel: response.channel,
           message: message,
-          displayText: `Message with ${attachments.length} attachment(s) sent to ${targetType === 'channel' ? 'channel' : 'user'}`,
-          fileIds: fileIds,
+          displayText: `Message sent to ${targetType === 'channel' ? 'channel' : 'user'}`,
           _output_types: {
             output_threadId: 'string'
           }
         }
       };
     } catch (error) {
-      console.error("Error sending message with attachments:", error);
+      console.error("Error sending message:", error);
       return {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : "Failed to send message with attachments",
+          message: error instanceof Error ? error.message : "Failed to send message",
           details: error
         }
       };
     }
-  }
-
-  private async processLocalAttachments(config: SlackConfig): Promise<FileAttachment[]> {
-    if (!config.localAttachments || config.localAttachments.length === 0) {
-      return [];
-    }
-    
-    const attachments: FileAttachment[] = [];
-    
-    for (const file of config.localAttachments) {
-      // Read the file content
-      const content = await new Promise<ArrayBuffer>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as ArrayBuffer);
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
-      
-      attachments.push({
-        name: file.name,
-        content,
-        type: file.type
-      });
-    }
-    
-    return attachments;
-  }
-
-  private async processAttachmentsFromPort(context: ExecutorContext): Promise<FileAttachment[]> {
-    if (!context.inputData || !context.inputData.input_attachments) {
-      return [];
-    }
-    
-    const attachmentData = context.inputData.input_attachments;
-    const attachments: FileAttachment[] = [];
-    
-    if (Array.isArray(attachmentData)) {
-      // If it's an array of files or file references
-      for (const item of attachmentData) {
-        if (typeof item === 'string') {
-          // Assume it's a base64 encoded string
-          const match = item.match(/^data:(.*?);base64,/);
-          const mimeType = match ? match[1] : 'application/octet-stream';
-          const filename = `file-${Date.now()}.${mimeType.split('/')[1] || 'bin'}`;
-          
-          attachments.push({
-            name: filename,
-            content: item,
-            type: mimeType
-          });
-        } else if (item && typeof item === 'object') {
-          // It's a file reference object
-          attachments.push({
-            name: item.name || `file-${Date.now()}`,
-            content: item.content || item.data || item.base64 || '',
-            type: item.type || item.mimeType || 'application/octet-stream'
-          });
-        }
-      }
-    } else if (typeof attachmentData === 'string') {
-      // Single base64 string
-      const match = attachmentData.match(/^data:(.*?);base64,/);
-      const mimeType = match ? match[1] : 'application/octet-stream';
-      const filename = `file-${Date.now()}.${mimeType.split('/')[1] || 'bin'}`;
-      
-      attachments.push({
-        name: filename,
-        content: attachmentData,
-        type: mimeType
-      });
-    } else if (attachmentData && typeof attachmentData === 'object') {
-      // Single file reference object
-      attachments.push({
-        name: attachmentData.name || `file-${Date.now()}`,
-        content: attachmentData.content || attachmentData.data || attachmentData.base64 || '',
-        type: attachmentData.type || attachmentData.mimeType || 'application/octet-stream'
-      });
-    }
-    
-    return attachments;
   }
 
   private async readMessages(
@@ -515,23 +322,174 @@ export class SlackExecutor extends AbstractExecutor {
     }
   }
 
+
+private async createCanvas(
+  context: ExecutorContext,
+  config: SlackConfig
+): Promise<ExecutionResult> {
+  try {
+    // Get inputs from ports or config
+    const canvasTitle = this.getInputValueOrConfig(context, 'input_canvasTitle', config, 'canvasTitle');
+    const canvasContent = this.getInputValueOrConfig(context, 'input_canvasContent', config, 'canvasContent');
+    const channelId = config.channelId;
+    
+    if (!channelId) {
+      throw new Error("Channel ID is required");
+    }
+    
+    if (!canvasTitle) {
+      throw new Error("Canvas title is required");
+    }
+    
+    if (!canvasContent) {
+      throw new Error("Canvas content is required");
+    }
+    
+    console.log("Creating Slack canvas with title:", canvasTitle);
+    
+    // Create the canvas using canvases.create endpoint
+    const createPayload = {
+      title: canvasTitle,
+      document_content: {
+        type: "markdown",
+        markdown: canvasContent
+      }
+    };
+    
+    console.log("Canvas create payload:", createPayload);
+    
+    const createResponse = await this.makeSlackRequest(
+      "canvases.create",
+      {
+        method: "POST",
+        body: JSON.stringify(createPayload)
+      },
+      context
+    );
+    
+    if (!createResponse.ok) {
+      throw new Error(createResponse.error || "Failed to create canvas");
+    }
+    
+    const canvasId = createResponse.canvas_id;
+    
+    if (!canvasId) {
+      throw new Error("Canvas ID missing in response");
+    }
+    
+    console.log("Canvas created successfully with ID:", canvasId);
+    
+    // Get team information for URL formation
+    let teamId = null;
+    let workspaceDomain = null;
+    
+    try {
+      console.log("Getting team information");
+      const teamInfoResponse = await this.makeSlackRequest(
+        "team.info",
+        { method: "GET" },
+        context
+      );
+      
+      if (teamInfoResponse.ok && teamInfoResponse.team) {
+        teamId = teamInfoResponse.team.id;
+        workspaceDomain = teamInfoResponse.team.domain;
+        console.log(`Got team info: ID=${teamId}, domain=${workspaceDomain}`);
+      } else {
+        console.log("Could not get team info:", teamInfoResponse.error || "Unknown error");
+        
+        // Fallbacks
+        if (context.tokens.team_id) {
+          teamId = context.tokens.team_id;
+          console.log("Using team_id from tokens:", teamId);
+        }
+      }
+    } catch (err) {
+      console.error("Error getting team info:", err);
+    }
+    
+    // Generate canvas URL
+    let canvasUrl;
+    if (teamId && workspaceDomain) {
+      canvasUrl = `https://${workspaceDomain}.slack.com/docs/${teamId}/${canvasId}`;
+    } else if (workspaceDomain) {
+      canvasUrl = `https://${workspaceDomain}.slack.com/docs/${canvasId}`;
+    } else if (teamId) {
+      canvasUrl = `https://slack.com/docs/${teamId}/${canvasId}`;
+    } else {
+      canvasUrl = `https://slack.com/docs/${canvasId}`;
+    }
+    
+    console.log("Canvas URL:", canvasUrl);
+    
+    // Share the canvas by posting its URL in a message
+    const shareMessagePayload = {
+      channel: channelId,
+      text: `Canvas created and shared successfully: ${canvasUrl}`,
+      blocks: [
+        {
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": `<${canvasUrl}|${canvasTitle}>`
+          }
+        }
+      ]
+    };
+    
+    const postResponse = await this.makeSlackRequest(
+      "chat.postMessage",
+      {
+        method: "POST",
+        body: JSON.stringify(shareMessagePayload)
+      },
+      context
+    );
+    
+    if (!postResponse.ok) {
+      console.warn("Failed to share canvas via message:", postResponse.error);
+    } else {
+      console.log("Canvas shared via message successfully");
+    }
+    
+    return {
+      success: true,
+      data: {
+        output_canvasLink: canvasUrl,
+        canvasId: canvasId,
+        title: canvasTitle,
+        content: canvasContent,
+        channelId: channelId,
+        displayText: `${canvasUrl}`,
+        _output_types: {
+          output_canvasLink: 'string'
+        }
+      }
+    };
+  } catch (error) {
+    console.error("Error creating Slack canvas:", error);
+    return {
+      success: false,
+      error: {
+        message: error instanceof Error ? error.message : "Failed to create canvas",
+        details: error
+      }
+    };
+  }
+}
   async execute(context: ExecutorContext, config: SlackConfig): Promise<ExecutionResult> {
     try {
+      console.log("Executing Slack action:", config.action);
+      
       switch (config.action) {
         case 'SEND_MESSAGE': {
-          let attachments: FileAttachment[] = [];
-          
-          // Process attachments based on source
-          if (config.attachmentSource === 'local') {
-            attachments = await this.processLocalAttachments(config);
-          } else if (config.attachmentSource === 'port') {
-            attachments = await this.processAttachmentsFromPort(context);
-          }
-          
-          return this.sendMessageWithAttachments(context, config, attachments);
+          return this.sendMessage(context, config);
         }
         case 'READ_MESSAGES': {
           return this.readMessages(context, config);
+        }
+        case 'CANVAS_WRITER': {
+          return this.createCanvas(context, config);
         }
         default:
           return {

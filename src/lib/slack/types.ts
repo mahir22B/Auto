@@ -1,4 +1,4 @@
-export type SlackAction = 'SEND_MESSAGE' | 'READ_MESSAGES';
+export type SlackAction = 'SEND_MESSAGE' | 'READ_MESSAGES' | 'CANVAS_WRITER';
 
 export type MessageInformationType = 
   | 'Messages'
@@ -29,6 +29,11 @@ export interface SlackConfig {
   startDate?: string;
   endDate?: string;
   messageInformation?: MessageInformationType[];
+
+  // For CANVAS_WRITER action
+  canvasTitle?: string;
+  canvasContent?: string;
+  accessLevel?: 'read' | 'write';
 }
 
 export interface SlackNode {
@@ -81,4 +86,13 @@ export interface SlackReadMessagesResult {
   threadLinks?: string[];
   channelNames?: string[];
   channelIds?: string[];
+}
+
+// Canvas Writer Result
+export interface SlackCanvasResult {
+  canvasId: string;
+  canvasLink: string;
+  title: string;
+  content: string;
+  channelId: string;
 }

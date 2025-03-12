@@ -129,7 +129,10 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "users:read",
       "im:read",         
       "mpim:read",
-      "channels:history"         
+      "channels:history",
+      "canvases:read",
+      "canvases:write",
+      "team:read"          
     ],
   },
 };
