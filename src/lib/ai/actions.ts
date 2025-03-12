@@ -44,7 +44,7 @@ export const AI_ACTIONS: Record<string, ActionConfig> = {
         options: [
           // OpenAI Models
           { value: 'openai_header', label: 'OpenAI', isHeader: true },
-          { value: 'openai/gpt-4o', label: 'GPT-4o' },
+          { value: 'openai/chatgpt-4o-latest', label: 'GPT-4o' },
           { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' },
           { value: 'openai/o1', label: 'OpenAI o1' },
           { value: 'openai/o3-mini', label: 'OpenAI o3-mini' },
@@ -52,13 +52,13 @@ export const AI_ACTIONS: Record<string, ActionConfig> = {
           // Anthropic Models
           { value: 'anthropic_header', label: 'Anthropic', isHeader: true },
           { value: 'anthropic/claude-3.7-sonnet', label: 'Claude 3.7 Sonnet' },
-          { value: 'anthropic/claude-3.7-sonnet-thinking', label: 'Claude 3.7 Sonnet - Thinking' },
-          { value: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku' },
+          { value: 'anthropic/claude-3.7-sonnet:thinking', label: 'Claude 3.7 Sonnet - Thinking' },
+          { value: 'anthropic/claude-3.5-haiku-20241022', label: 'Claude 3.5 Haiku' },
           
           // Google Models
-          { value: 'google_header', label: 'Google', isHeader: true },
-          { value: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-          { value: 'google/gemma-7b', label: 'Gemma 7B' },
+          // { value: 'google_header', label: 'Google', isHeader: true },
+          // { value: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+          // { value: 'google/gemma-7b', label: 'Gemma 7B' },
           
           // Perplexity Models
           { value: 'perplexity_header', label: 'Perplexity', isHeader: true },
@@ -68,14 +68,14 @@ export const AI_ACTIONS: Record<string, ActionConfig> = {
           { value: 'perplexity/sonar', label: 'Perplexity Sonar' },
           
           // Meta Models
-          { value: 'meta_header', label: 'Meta', isHeader: true },
-          { value: 'meta/llama-3-70b', label: 'LLaMA 3 70B' },
-          { value: 'meta/llama-3-405b-instruct', label: 'LLaMA 3 405B Instruct' },
+          // { value: 'meta_header', label: 'Meta', isHeader: true },
+          // { value: 'meta/llama-3-70b', label: 'LLaMA 3 70B' },
+          // { value: 'meta/llama-3-405b-instruct', label: 'LLaMA 3 405B Instruct' },
           
           // DeepSeek Models
-          { value: 'deepseek_header', label: 'DeepSeek', isHeader: true },
-          { value: 'deepseek/v3', label: 'DeepSeek V3' },
-          { value: 'deepseek/r1', label: 'DeepSeek R1' }
+          // { value: 'deepseek_header', label: 'DeepSeek', isHeader: true },
+          // { value: 'deepseek/v3', label: 'DeepSeek V3' },
+          // { value: 'deepseek/r1', label: 'DeepSeek R1' }
         ],
         placeholder: 'Select an AI model'
       },

@@ -62,7 +62,6 @@ export class AIExecutor extends AbstractExecutor {
       
       messages.push({ role: "user", content: prompt });
       
-      // Call our backend proxy instead of requiring user API keys
       const response = await fetch('/api/ai/completion', {
         method: 'POST',
         headers: {
@@ -87,13 +86,20 @@ export class AIExecutor extends AbstractExecutor {
       // Extract the AI's response and token usage
       const aiResponse = data.choices[0].message.content;
       const tokensUsed = data.usage?.total_tokens || 0;
+      const actualModel = data.model; // Get the actual model used
+
+    // Add model verification
+    if (actualModel !== config.model) {
+      alert(`Requested model ${config.model} but got response from ${actualModel}`);
+    }
+
       
       return {
         success: true,
         data: {
           output_response: aiResponse,
           output_tokens: tokensUsed,
-          model: data.model, // Include the actual model used
+          model: actualModel, // Include the actual model used
           _output_types: {
             output_response: 'string',
             output_tokens: 'number'
