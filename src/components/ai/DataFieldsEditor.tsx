@@ -61,21 +61,40 @@ export const DataFieldsEditor: React.FC<DataFieldsEditorProps> = ({ value = [], 
       .replace(/_{2,}/g, '_');     // Remove duplicate underscores
   };
 
-  // Handle wheel event to prevent zooming when scrolling the container
+  // Enhanced wheel event handler with debug logging
   const handleWheel = (e: React.WheelEvent) => {
+    // console.log('DataFieldsEditor: Wheel event detected', {
+    //   deltaY: e.deltaY,
+    //   scrollTop: scrollContainerRef.current?.scrollTop,
+    //   scrollHeight: scrollContainerRef.current?.scrollHeight,
+    //   clientHeight: scrollContainerRef.current?.clientHeight
+    // });
+    
     if (scrollContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
       
-      if (
-        (e.deltaY > 0 && scrollTop < scrollHeight - clientHeight) ||
-        (e.deltaY < 0 && scrollTop > 0)
-      ) {
-        // Prevent default behavior AND stop propagation
+      // Check if scrolling is needed and possible in the desired direction
+      if ((e.deltaY > 0 && scrollTop < scrollHeight - clientHeight) || 
+          (e.deltaY < 0 && scrollTop > 0)) {
+        
+        // console.log('DataFieldsEditor: Preventing default and stopping propagation');
+        
+        // These two lines are critical - they prevent the event from triggering ReactFlow's zoom
         e.preventDefault();
         e.stopPropagation();
         
-        // Manually scroll the container
-        scrollContainerRef.current.scrollTop += e.deltaY;
+        // Calculate a reasonable scroll amount
+        const scrollAmount = e.deltaY * 0.5; // Reduce the scroll speed a bit
+        
+        // Manually handle the scroll
+        scrollContainerRef.current.scrollTop += scrollAmount;
+        
+        // console.log('DataFieldsEditor: Manually scrolled to', scrollContainerRef.current.scrollTop);
+        
+        // Return false can help in some cases to further prevent event bubbling
+        return false;
+      } else {
+        // console.log('DataFieldsEditor: Scroll not needed or not possible in this direction');
       }
     }
   };
@@ -91,17 +110,28 @@ export const DataFieldsEditor: React.FC<DataFieldsEditorProps> = ({ value = [], 
     overflowX: 'hidden' as const,
     display: 'block',
     position: 'relative' as const,
-    WebkitOverflowScrolling: 'touch', // For smooth scrolling on iOS
+    WebkitOverflowScrolling: 'touch',
+    msOverflowStyle: 'none', // Hide scrollbar in IE
+    scrollbarWidth: 'thin',  // Thin scrollbar in Firefox
   } : {};
+
+  // Log when scroll state changes
+  // useEffect(() => {
+  //   console.log('DataFieldsEditor: Scroll state changed', { 
+  //     shouldScroll, 
+  //     fieldCount: fields.length 
+  //   });
+  // }, [shouldScroll, fields.length]);
 
   return (
     <div className="space-y-4">
-      {/* Scrollable fields container with nodrag class to prevent interfering with ReactFlow */}
+      {/* Scrollable fields container with enhanced classes for ReactFlow */}
       <div 
         ref={scrollContainerRef}
-        className={`space-y-4 ${shouldScroll ? 'pr-2 nodrag nopan' : ''}`}
+        className={`space-y-4 ${shouldScroll ? 'pr-2 nodrag nopan nowheel' : ''}`}
         style={scrollableStyle}
         onWheel={shouldScroll ? handleWheel : undefined}
+        onClick={(e) => e.stopPropagation()} // Prevent clicks from propagating to ReactFlow
       >
         {fields.map((field, index) => (
           <div key={index} className="p-4 border rounded-lg bg-gray-50 relative">
@@ -174,7 +204,7 @@ export const DataFieldsEditor: React.FC<DataFieldsEditorProps> = ({ value = [], 
         onClick={handleAddField}
       >
         <Plus className="h-4 w-4" />
-        Add Data Field
+        Add Data
       </Button>
     </div>
   );
