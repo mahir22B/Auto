@@ -16,27 +16,12 @@ const AI_MODELS = [
   { value: 'anthropic/claude-3.7-sonnet:thinking', label: 'Claude 3.7 Sonnet - Thinking' },
   { value: 'anthropic/claude-3.5-haiku-20241022', label: 'Claude 3.5 Haiku' },
   
-  // Google Models
-  // { value: 'google_header', label: 'Google', isHeader: true },
-  // { value: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  // { value: 'google/gemma-7b', label: 'Gemma 7B' },
-  
   // Perplexity Models
   { value: 'perplexity_header', label: 'Perplexity', isHeader: true },
   { value: 'perplexity/sonar-reasoning-pro', label: 'Perplexity Sonar Reasoning Pro' },
   { value: 'perplexity/sonar-reasoning', label: 'Perplexity Sonar Reasoning' },
   { value: 'perplexity/sonar-pro', label: 'Perplexity Sonar Pro' },
   { value: 'perplexity/sonar', label: 'Perplexity Sonar' },
-  
-  // Meta Models
-  // { value: 'meta_header', label: 'Meta', isHeader: true },
-  // { value: 'meta/llama-3-70b', label: 'LLaMA 3 70B' },
-  // { value: 'meta/llama-3-405b-instruct', label: 'LLaMA 3 405B Instruct' },
-  
-  // DeepSeek Models
-  // { value: 'deepseek_header', label: 'DeepSeek', isHeader: true },
-  // { value: 'deepseek/v3', label: 'DeepSeek V3' },
-  // { value: 'deepseek/r1', label: 'DeepSeek R1' }
 ];
 
 export const AI_ACTIONS: Record<string, ActionConfig> = {
@@ -146,6 +131,88 @@ export const AI_ACTIONS: Record<string, ActionConfig> = {
       outputs: [
         { id: 'output_summary', label: 'Summary', type: 'string', isActive: true, isListType: false }
       ]
+    }
+  },
+  
+  EXTRACT_INFORMATION: {
+    id: 'EXTRACT_INFORMATION',
+    name: 'Extract Information',
+    description: 'Extract structured data from unstructured text',
+    configFields: [
+      // {
+      //   name: 'extractList',
+      //   label: 'Extract List?',
+      //   type: 'boolean',
+      //   required: false,
+      //   placeholder: 'Extract multiple items?'
+      // },
+      {
+        name: 'dataFields',
+        label: 'Data Fields',
+        type: 'dataFields', // Custom field type that will be handled in the UI
+        required: true,
+        placeholder: 'Define data to extract'
+      },
+      {
+        name: 'additionalContext',
+        label: 'Additional Context',
+        type: 'text',
+        required: false,
+        placeholder: 'Additional context to guide extraction'
+      },
+      {
+        name: 'model',
+        label: 'AI Model',
+        type: 'select',
+        required: true,
+        options: AI_MODELS,
+        placeholder: 'Select an AI model'
+      },
+    ],
+    ports: {
+      inputs: [
+        { id: 'input_text', label: 'Text', type: 'string', isActive: true, isListType: false }
+      ],
+      outputs: [
+        // { id: 'output_data', label: 'Extracted Data', type: 'object', isActive: true, isListType: false }
+        // Dynamic outputs will be added based on defined fields
+      ]
+    },
+    // Add a function to generate dynamic ports based on the configured data fields
+    getDynamicPorts: (config: any) => {
+      if (!config || !config.dataFields || !Array.isArray(config.dataFields) || config.dataFields.length === 0) {
+        return {
+          inputs: [
+            { id: 'input_text', label: 'Text', type: 'string', isActive: true, isListType: false }
+          ],
+          outputs: [
+            // { id: 'output_data', label: 'Extracted Data', type: 'object', isActive: true, isListType: false }
+          ]
+        };
+      }
+      
+      
+      // Create dynamic output ports based on the defined data fields
+      const outputs = [
+        // { id: 'output_data', label: 'Extracted Data', type: 'object', isActive: true, isListType: false }
+      ];
+      
+      config.dataFields.forEach((field: any) => {
+        outputs.push({
+          id: `output_${field.name}`,
+          label: field.name,
+          type: field.type || 'string',
+          isActive: true,
+          isListType: config.extractList === true
+        });
+      });
+      
+      return {
+        inputs: [
+          { id: 'input_text', label: 'Text', type: 'string', isActive: true, isListType: false }
+        ],
+        outputs
+      };
     }
   }
 };

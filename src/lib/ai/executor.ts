@@ -11,6 +11,8 @@ export class AIExecutor extends AbstractExecutor {
           return this.executeAskAI(context, config);
         case "SUMMARIZE":
           return this.executeSummarize(context, config);
+        case "EXTRACT_INFORMATION":
+          return this.executeExtractInformation(context, config);
         default:
           return {
             success: false,
@@ -217,6 +219,184 @@ Here is the text to summarize:`;
         success: false,
         error: {
           message: error instanceof Error ? error.message : "Failed to generate summary",
+          details: error
+        }
+      };
+    }
+  }
+  
+  private async executeExtractInformation(context: ExecutorContext, config: AIConfig): Promise<ExecutionResult> {
+    try {
+      // Get input text from connected nodes or config
+      const inputText = this.getInputValueOrConfig(context, 'input_text', config, 'text');
+      
+      if (!inputText) {
+        return {
+          success: false,
+          error: { message: "Input text is required for extraction" }
+        };
+      }
+      
+      if (!config.model) {
+        return {
+          success: false,
+          error: { message: "AI model selection is required" }
+        };
+      }
+      
+      if (!config.dataFields || !Array.isArray(config.dataFields) || config.dataFields.length === 0) {
+        return {
+          success: false,
+          error: { message: "No data fields defined for extraction" }
+        };
+      }
+      
+      // Format the system prompt for information extraction
+      let systemPrompt = `You are an expert at extracting specific information from text. 
+Your task is to extract the following data points from the provided text:
+
+`;
+      
+      // Add each data field to the system prompt
+      config.dataFields.forEach((field: any) => {
+        systemPrompt += `- ${field.name} (${field.type}): ${field.description || 'No description provided'}\n`;
+      });
+      
+      // Add instructions based on whether we're extracting a list or single items
+      if (config.extractList) {
+        systemPrompt += `\nExtract ALL matching instances of each data point as a list, even if there are multiple occurrences.`;
+      } else {
+        systemPrompt += `\nExtract only the MOST RELEVANT instance of each data point.`;
+      }
+      
+      // Add additional context if provided
+      if (config.additionalContext) {
+        systemPrompt += `\n\nAdditional context: ${config.additionalContext}`;
+      }
+      
+      // Add output format instructions
+      systemPrompt += `
+\nReturn the extracted information as a valid JSON object with the following structure:
+{
+  "results": {`;
+      
+      // Define the expected structure based on whether it's a list extraction or not
+      if (config.extractList) {
+        config.dataFields.forEach((field: any, index: number) => {
+          systemPrompt += `
+    "${field.name}": [
+      // Array of extracted values with type ${field.type}
+    ]${index < config.dataFields.length - 1 ? ',' : ''}`;
+        });
+      } else {
+        config.dataFields.forEach((field: any, index: number) => {
+          systemPrompt += `
+    "${field.name}": // Extracted value with type ${field.type}${index < config.dataFields.length - 1 ? ',' : ''}`;
+        });
+      }
+      
+      systemPrompt += `
+  },
+  "metadata": {
+    "confidence": {`;
+      
+      // Add confidence fields for each data point
+      config.dataFields.forEach((field: any, index: number) => {
+        systemPrompt += `
+      "${field.name}": // Confidence score from 0 to 1${index < config.dataFields.length - 1 ? ',' : ''}`;
+      });
+      
+      systemPrompt += `
+    }
+  }
+}
+
+Please provide only the JSON output without any additional text, explanation, or disclaimer.`;
+
+      // Prepare messages for the AI
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: inputText }
+      ];
+      
+      // Make the API request
+      const response = await fetch('/api/ai/completion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          temperature: 0.2, // Lower temperature for more deterministic extraction
+          max_tokens: config.maxTokens || undefined,
+          stream: false
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+      }
+      
+      const data = await response.json() as OpenRouterResponse;
+      
+      // Extract the AI's response
+      const aiResponse = data.choices[0].message.content;
+      const tokensUsed = data.usage?.total_tokens || 0;
+      const actualModel = data.model;
+      
+      // Try to parse the JSON response
+      let extractedData: any;
+      try {
+        // Remove any potential markdown code blocks wrapping
+        const jsonText = aiResponse.replace(/```json\n?|\n?```/g, '').trim();
+        extractedData = JSON.parse(jsonText);
+      } catch (err) {
+        return {
+          success: false,
+          error: {
+            message: "Failed to parse AI response as JSON",
+            details: {
+              aiResponse,
+              parsingError: err instanceof Error ? err.message : "Unknown error"
+            }
+          }
+        };
+      }
+      
+      // Format the output
+      const result: Record<string, any> = {
+        output_data: extractedData,
+        model: actualModel,
+        tokensUsed: tokensUsed,
+        _output_types: {
+          output_data: 'object'
+        }
+      };
+      
+      // Add individual outputs for each data field
+      if (extractedData && extractedData.results) {
+        config.dataFields.forEach((field: any) => {
+          const outputKey = `output_${field.name}`;
+          result[outputKey] = extractedData.results[field.name];
+          
+          // Add type information
+          result._output_types[outputKey] = config.extractList ? 
+            `${field.type}_array` : field.type;
+        });
+      }
+      
+      return {
+        success: true,
+        data: result
+      };
+    } catch (error) {
+      console.error("Error executing Extract Information action:", error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : "Failed to extract information",
           details: error
         }
       };

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import GooglePicker from "../GooglePickerComponent";
 import SlackFileUploader from "../SlackFileUploader";
+import { DataFieldsEditor } from "@/components/ai/DataFieldsEditor";
 
 interface PortTypeInfo {
   nodeId: string;
@@ -207,7 +208,9 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         config.action === "READ_UNREAD") ||
       (updates.messageInformation &&
         data.service === "slack" &&
-        config.action === "READ_MESSAGES")
+        config.action === "READ_MESSAGES") ||
+      (updates.dataFields && data.service === "ai" && config.action === "EXTRACT_INFORMATION") || 
+      (updates.extractList !== undefined && data.service === "ai" && config.action === "EXTRACT_INFORMATION")
     ) {
       if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
         const ports = actions[newConfig.action].getDynamicPorts(newConfig);
@@ -274,7 +277,10 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
       actions[config.action]?.getDynamicPorts &&
       ((data.service === "sheets" && config.selectedColumns) ||
         (data.service === "gmail" &&
-          (config.emailInformation || config.maxResults !== undefined)))
+          (config.emailInformation || config.maxResults !== undefined)) ||
+        (data.service === "ai" && 
+          config.action === "EXTRACT_INFORMATION" && 
+          (config.dataFields || config.extractList !== undefined)))
     ) {
       const ports = actions[config.action].getDynamicPorts(config);
       data.updateNodeConfig({
@@ -286,6 +292,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     config.selectedColumns,
     config.emailInformation,
     config.maxResults,
+    config.dataFields,
+    config.extractList,
     config.action,
   ]);
 
@@ -641,24 +649,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     </div>
   );
 
-  if (showAuthPrompt) {
-    return (
-      <Card className="p-4 w-80">
-        {renderHeader()}
-        <div className="space-y-4">
-          <div className="text-center">
-            <p className="text-gray-700 mb-4">
-              Authentication required to use {name} actions
-            </p>
-            <Button className="w-full bg-black" onClick={data.onAuth}>
-              Login with {name}
-            </Button>
-          </div>
-        </div>
-      </Card>
-    );
-  }
-
+  // Function to check if a field should be visible based on dependencies
   const isFieldVisible = (field: any, config: any): boolean => {
     // If no dependencies or visibilityCondition specified, field is always visible
     if (
@@ -695,6 +686,24 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     // If we get here, dependencies are satisfied and there's no visibilityCondition
     return true;
   };
+
+  if (showAuthPrompt) {
+    return (
+      <Card className="p-4 w-80">
+        {renderHeader()}
+        <div className="space-y-4">
+          <div className="text-center">
+            <p className="text-gray-700 mb-4">
+              Authentication required to use {name} actions
+            </p>
+            <Button className="w-full bg-black" onClick={data.onAuth}>
+              Login with {name}
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   if (config.action) {
     const action = actions[config.action];
@@ -739,7 +748,26 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                 <Label>
                   <strong>{field.label}</strong>
                 </Label>
-                {field.type === "file" ? (
+
+                {field.type === 'dataFields' ? (
+                  <DataFieldsEditor
+                    value={config[field.name] || []}
+                    onChange={(value) => handleConfigChange({ [field.name]: value })}
+                  />
+                ) : field.type === 'boolean' ? (
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={field.name}
+                      checked={!!config[field.name]}
+                      onChange={(e) => handleConfigChange({ [field.name]: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <label htmlFor={field.name} className="text-sm text-gray-700">
+                      {field.label}
+                    </label>
+                  </div>
+                ) : field.type === "file" ? (
                   <SlackFileUploader
                     selectedFiles={config[field.name] || null}
                     onFilesSelected={(files) =>

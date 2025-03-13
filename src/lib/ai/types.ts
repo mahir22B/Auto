@@ -1,5 +1,5 @@
 // src/lib/ai/types.ts
-export type AIAction = 'ASK_AI' | 'SUMMARIZE';
+export type AIAction = 'ASK_AI' | 'SUMMARIZE' | 'EXTRACT_INFORMATION';
 
 export interface AIConfig {
   action: AIAction;
@@ -15,6 +15,15 @@ export interface AIConfig {
   
   // For SUMMARIZE action
   text?: string;
+  
+  // For EXTRACT_INFORMATION action
+  extractList?: boolean;
+  dataFields?: Array<{
+    name: string;
+    type: 'text' | 'number' | 'boolean';
+    description?: string;
+  }>;
+  additionalContext?: string;
 }
 
 export interface AINode {
