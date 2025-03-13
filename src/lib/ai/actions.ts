@@ -180,31 +180,30 @@ export const AI_ACTIONS: Record<string, ActionConfig> = {
     },
     // Add a function to generate dynamic ports based on the configured data fields
     getDynamicPorts: (config: any) => {
-      if (!config || !config.dataFields || !Array.isArray(config.dataFields) || config.dataFields.length === 0) {
+      if (!config || !config.dataFields || !Array.isArray(config.dataFields)) {
         return {
           inputs: [
             { id: 'input_text', label: 'Text', type: 'string', isActive: true, isListType: false }
           ],
-          outputs: [
-            // { id: 'output_data', label: 'Extracted Data', type: 'object', isActive: true, isListType: false }
-          ]
+          outputs: []
         };
       }
       
       
       // Create dynamic output ports based on the defined data fields
-      const outputs = [
-        // { id: 'output_data', label: 'Extracted Data', type: 'object', isActive: true, isListType: false }
-      ];
+      const outputs = [];
       
       config.dataFields.forEach((field: any) => {
-        outputs.push({
-          id: `output_${field.name}`,
-          label: field.name,
-          type: field.type || 'string',
-          isActive: true,
-          isListType: config.extractList === true
-        });
+        // Only add a port if the field has a non-empty name
+        if (field.name && field.name.trim() !== '') {
+          outputs.push({
+            id: `output_${field.name}`,
+            label: field.name,
+            type: field.type || 'string',
+            isActive: true,
+            isListType: config.extractList === true
+          });
+        }
       });
       
       return {

@@ -1,6 +1,6 @@
 // src/components/flow/FlowNode.tsx
 import React, { useState, useCallback, useEffect } from "react";
-import { Handle, Position } from "reactflow";
+import { Handle, Position, useUpdateNodeInternals } from "reactflow";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const [config, setConfig] = useState(data.config);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [nodeWidth, setNodeWidth] = useState(320); // Default width
+  const updateNodeInternals = useUpdateNodeInternals(); // Add this line
+
 
   // Add state for dynamic options loading
   const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>(
@@ -218,6 +220,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           ...newConfig,
           ports,
         });
+        updateNodeInternals(id);
         return;
       }
     }
@@ -287,6 +290,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         ...config,
         ports,
       });
+      updateNodeInternals(id);
+
     }
   }, [
     config.selectedColumns,
@@ -295,6 +300,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     config.dataFields,
     config.extractList,
     config.action,
+    id,
+    updateNodeInternals
   ]);
 
   const renderPorts = () => {
