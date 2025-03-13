@@ -62,6 +62,25 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     }));
   };
 
+  // Helper function to determine provider from model name
+  const getProviderDetails = (modelString) => {
+    if (!modelString) return { name: 'AI', color: 'gray' };
+    
+    if (modelString.includes('openai')) {
+      return { name: 'OpenAI', color: 'green', icon: '/icons/openai.svg' };
+    } else if (modelString.includes('anthropic')) {
+      return { name: 'Anthropic', color: 'purple', icon: '/icons/anthropic.svg' };
+    } else if (modelString.includes('google')) {
+      return { name: 'Google', color: 'blue', icon: '/icons/google.svg' };
+    } else if (modelString.includes('perplexity')) {
+      return { name: 'Perplexity', color: 'indigo', icon: '/icons/ai.svg' };
+    } else if (modelString.includes('deepseek')) {
+      return { name: 'DeepSeek', color: 'orange', icon: '/icons/ai.svg' };
+    }
+    
+    return { name: modelString.split('/')[0], color: 'gray', icon: '/icons/ai.svg' };
+  };
+  
   const renderGmailReaderResults = (nodeId: string, result: any) => {
     if (!result.success || !result.data || !result.data.messages) {
       return (
@@ -328,25 +347,6 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     const tokensUsed = result.data.output_tokens;
     const model = result.data.model;
     
-    // Helper function to determine provider from model name
-    const getProviderDetails = (modelString) => {
-      if (!modelString) return { name: 'AI', color: 'gray' };
-      
-      if (modelString.includes('openai')) {
-        return { name: 'OpenAI', color: 'green', icon: '/icons/openai.svg' };
-      } else if (modelString.includes('anthropic')) {
-        return { name: 'Anthropic', color: 'purple', icon: '/icons/anthropic.svg' };
-      } else if (modelString.includes('google')) {
-        return { name: 'Google', color: 'blue', icon: '/icons/google.svg' };
-      } else if (modelString.includes('perplexity')) {
-        return { name: 'Perplexity', color: 'indigo', icon: '/icons/ai.svg' };
-      } else if (modelString.includes('deepseek')) {
-        return { name: 'DeepSeek', color: 'orange', icon: '/icons/ai.svg' };
-      }
-      
-      return { name: modelString.split('/')[0], color: 'gray', icon: '/icons/ai.svg' };
-    };
-    
     const provider = getProviderDetails(model);
     
     return (
@@ -373,6 +373,49 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
       </div>
     );
   };
+
+  const renderSummarizerResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to generate summary"}
+        </div>
+      );
+    }
+    
+    const summary = result.data.output_summary;
+    const tokensUsed = result.data.output_tokens;
+    const model = result.data.model;
+    
+    const provider = getProviderDetails(model);
+    
+    return (
+      <div className="space-y-4 p-4">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className={`text-${provider.color}-600 font-medium flex items-center gap-1`}>
+                <div className={`w-2 h-2 bg-${provider.color}-500 rounded-full`}></div>
+                {provider.name}
+              </span>
+              <span className="text-sm text-gray-500">
+                {model ? model.split('/')[1] : 'Unknown model'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md border border-gray-100 mb-3 max-h-96 overflow-y-auto">
+            {summary}
+          </div>
+          
+          <div className="flex justify-between items-center text-xs text-gray-500">
+            {/* <div>Tokens used: {tokensUsed || 'Unknown'}</div> */}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   const renderNodeResults = (nodeId: string, node: any, result: any) => {
     switch (node.type) {
@@ -647,7 +690,7 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
                         rel="noopener noreferrer"
                         className="inline-flex items-center text-blue-500 hover:text-blue-700"
                       >
-                        <span>Open in Google Docs</span>
+                       <span>Open in Google Docs</span>
                         <ExternalLink className="ml-1 h-4 w-4" />
                       </a>
                     </div>
@@ -680,6 +723,8 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
         case "ai":
           if (node.data.config.action === "ASK_AI") {
             return renderAIResults(nodeId, result);
+          } else if (node.data.config.action === "SUMMARIZE") {
+            return renderSummarizerResults(nodeId, result);
           }
           break;
     }

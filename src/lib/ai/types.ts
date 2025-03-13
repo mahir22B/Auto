@@ -1,15 +1,20 @@
 // src/lib/ai/types.ts
-export type AIAction = 'ASK_AI' | 'SUMMARIZE'; // Adding SUMMARIZE for future expansion
+export type AIAction = 'ASK_AI' | 'SUMMARIZE';
 
 export interface AIConfig {
   action: AIAction;
-  // For ASK_AI action
+  // Common fields
   model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  
+  // For ASK_AI action
   systemPrompt?: string;
   prompt?: string;
   context?: string;
-  temperature?: number;
-  maxTokens?: number;
+  
+  // For SUMMARIZE action
+  text?: string;
 }
 
 export interface AINode {
