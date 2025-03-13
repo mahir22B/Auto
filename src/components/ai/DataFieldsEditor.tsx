@@ -55,9 +55,9 @@ export const DataFieldsEditor: React.FC<DataFieldsEditorProps> = ({ value = [], 
   // Sanitize field name - convert to snake_case and remove special characters
   const sanitizeFieldName = (name: string): string => {
     return name
-      .toLowerCase()
+      // .toLowerCase()
       .replace(/\s+/g, '_')        // Replace spaces with underscores
-      .replace(/[^a-z0-9_]/g, '')  // Remove special characters
+      .replace(/[^a-zA-Z0-9_]/g, '')  // Remove special characters
       .replace(/_{2,}/g, '_');     // Remove duplicate underscores
   };
 
