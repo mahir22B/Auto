@@ -373,6 +373,56 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
       </div>
     );
   };
+  const renderExtractInformationResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to extract information"}
+        </div>
+      );
+    }
+  
+    // Get all output fields (those that start with "output_")
+    const outputFields = Object.keys(result.data)
+      .filter(key => key.startsWith('output_') && key !== 'output_data')
+      .sort();
+  
+    return (
+      <div className="p-4">
+        <div className="bg-gray-50 p-3 rounded">
+          {/* Model stats if available */}
+          {/* {result.data.model && (
+            <div className="text-sm text-green-600 mb-4">
+              LLM Call Count: 1 Cache Hit Count: 0
+            </div>
+          )} */}
+          
+          {/* Display each extracted field cleanly */}
+          <div className="space-y-6">
+            {outputFields.map(key => {
+              const fieldName = key.replace('output_', '');
+              const value = result.data[key];
+              
+              // Format the value based on type
+              const formattedValue = typeof value === 'boolean'
+                ? (value ? 'Yes' : 'No')
+                : typeof value === 'number' && fieldName.toLowerCase().includes('price')
+                ? `$${value.toLocaleString()}`
+                : String(value);
+              
+              return (
+                <div key={key} className="text-gray-800">
+                  <p className="text-lg">
+                    '{fieldName}' : {formattedValue}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderSummarizerResults = (nodeId: string, result: any) => {
     if (!result.success || !result.data) {
@@ -720,13 +770,15 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
           }
           break;
           
-        case "ai":
-          if (node.data.config.action === "ASK_AI") {
-            return renderAIResults(nodeId, result);
-          } else if (node.data.config.action === "SUMMARIZE") {
-            return renderSummarizerResults(nodeId, result);
-          }
-          break;
+          case "ai":
+            if (node.data.config.action === "ASK_AI") {
+              return renderAIResults(nodeId, result);
+            } else if (node.data.config.action === "SUMMARIZE") {
+              return renderSummarizerResults(nodeId, result);
+            } else if (node.data.config.action === "EXTRACT_INFORMATION") {  
+              return renderExtractInformationResults(nodeId, result);
+            }
+            break;
     }
 
     // Default fallback renderer

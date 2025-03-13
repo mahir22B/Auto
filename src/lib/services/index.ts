@@ -68,9 +68,30 @@ export const SERVICES: Record<string, ServiceConfig> = {
     id: "ai",
     name: "Use AI",
     description: "Leverage AI for your workflows",
-    icon: "/icons/ai.svg", // You'll need to create this icon
+    icon: "/icons/ai.svg", 
     actions: AI_ACTIONS,
     authScopes: [], // No OAuth scopes needed for OpenRouter
+  },
+  slack: {
+    id: "slack",
+    name: "Slack",
+    description: "Send and receive Slack messages",
+    icon: "/icons/slack.svg",
+    actions: SLACK_ACTIONS,
+    authScopes: [
+      "chat:write",
+      "channels:read",
+      "groups:read",
+      "files:write",
+      "files:read",
+      "users:read",
+      "im:read",         
+      "mpim:read",
+      "channels:history",
+      "canvases:read",
+      "canvases:write",
+      "team:read"          
+    ],
   },
   gmail: {
     id: "gmail",
@@ -105,7 +126,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
     authScopes: [
       "https://www.googleapis.com/auth/spreadsheets",
       "https://www.googleapis.com/auth/spreadsheets.readonly",
-      "https://www.googleapis.com/auth/drive.readonly", // Add this
+      "https://www.googleapis.com/auth/drive.readonly", 
       "https://www.googleapis.com/auth/drive.file",
     ],
   },
@@ -124,26 +145,4 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "https://www.googleapis.com/auth/drive.metadata.readonly"
     ],
   },
-  slack: {
-    id: "slack",
-    name: "Slack",
-    description: "Send and receive Slack messages",
-    icon: "/icons/slack.svg",
-    actions: SLACK_ACTIONS,
-    authScopes: [
-      "chat:write",
-      "channels:read",
-      "groups:read",
-      "files:write",
-      "files:read",
-      "users:read",
-      "im:read",         
-      "mpim:read",
-      "channels:history",
-      "canvases:read",
-      "canvases:write",
-      "team:read"          
-    ],
-  },
-
 };
