@@ -46,6 +46,10 @@ export const TYPE_REGISTRY: TypeRegistry = {
     isAdaptive: true,
     description: 'A text value or list of text values depending on context'
   },
+  'score': { 
+    baseType: 'number',
+    description: 'A numerical score between 0 and 100'
+  },
   'email': {
     baseType: 'object',
     objectShape: {
@@ -93,6 +97,12 @@ export function areTypesCompatible(sourceTypeName: string, targetTypeName: strin
     return true;
   }
   
+  // Score is compatible with number type
+  if ((sourceType.baseType === 'number' && targetTypeName === 'score') || 
+      (sourceTypeName === 'score' && targetType.baseType === 'number')) {
+    return true;
+  }
+  
   // Same type is always compatible
   if (sourceType.baseType === targetType.baseType && 
       sourceType.isArray === targetType.isArray) {
@@ -127,6 +137,12 @@ export function getTypeTransformation(sourceTypeName: string, targetTypeName: st
   if (sourceType.baseType === 'string' && !sourceType.isArray &&
       targetType.isArray && targetType.arrayItemType === 'string') {
     return 'SINGLE_TO_ARRAY';
+  }
+  
+  // Score to number and vice versa
+  if ((sourceTypeName === 'score' && targetType.baseType === 'number') ||
+      (sourceType.baseType === 'number' && targetTypeName === 'score')) {
+    return 'DIRECT'; // No transformation needed, they're compatible as-is
   }
   
   // If source is adaptive, it can flow directly but may need runtime checking

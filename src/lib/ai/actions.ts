@@ -213,5 +213,81 @@ export const AI_ACTIONS: Record<string, ActionConfig> = {
         outputs
       };
     }
+  },
+
+  SCORER: {
+    id: 'SCORER',
+    name: 'Scorer',
+    description: 'Assign a numerical score from 0 to 100, based on predefined criteria, to quantitatively assess the quality of a given entity.',
+    configFields: [
+      {
+        name: 'item',
+        label: 'Item',
+        type: 'input',
+        required: true,
+        placeholder: 'Enter the item to be scored'
+      },
+      {
+        name: 'criteria',
+        label: 'Criteria',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter the criteria on which you want the item to be scored, e.g., \'clear message = high score, unclear message= low score\''
+      },
+      {
+        name: 'additionalContext',
+        label: 'Additional Context',
+        type: 'input',
+        required: false,
+        placeholder: '[Optional] ex: "The criteria here pertain to the clarity of the message."'
+      },
+      // {
+      //   name: 'includeJustification',
+      //   label: 'Include Justification',
+      //   type: 'checkbox',
+      //   required: false,
+      //   placeholder: 'Toggle to include justification with score'
+      // },
+      // {
+      //   name: 'loopMode',
+      //   label: 'Loop Mode',
+      //   type: 'boolean',
+      //   required: false,
+      //   placeholder: 'Toggle to process multiple items against the same criteria'
+      // },
+      {
+        name: 'model',
+        label: 'AI Model',
+        type: 'select',
+        required: true,
+        options: AI_MODELS,
+        placeholder: 'Select an AI model'
+      },
+    ],
+    ports: {
+      inputs: [
+        { id: 'input_item', label: 'Item', type: 'string', isActive: true, isListType: false },
+        { id: 'input_criteria', label: 'Criteria', type: 'string', isActive: true, isListType: false },
+        { id: 'input_additionalContext', label: 'Additional Context', type: 'string', isActive: true, isListType: false }
+      ],
+      outputs: [
+        { id: 'output_score', label: 'Score', type: 'number', isActive: true, isListType: false },
+        { id: 'output_justification', label: 'Justification', type: 'string', isActive: false, isListType: false }
+      ]
+    },
+    getDynamicPorts: (config: any) => {
+      // Set justification output as active based on includeJustification flag
+      return {
+        inputs: [
+          { id: 'input_item', label: 'Item', type: 'string', isActive: true, isListType: false },
+          { id: 'input_criteria', label: 'Criteria', type: 'string', isActive: true, isListType: false },
+          { id: 'input_additionalContext', label: 'Additional Context', type: 'string', isActive: true, isListType: false }
+        ],
+        outputs: [
+          { id: 'output_score', label: 'Score', type: 'number', isActive: true, isListType: false },
+          // { id: 'output_justification', label: 'Justification', type: 'string', isActive: config.includeJustification === true, isListType: false }
+        ]
+      };
+    }
   }
 };

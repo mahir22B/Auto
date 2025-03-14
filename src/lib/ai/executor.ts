@@ -13,6 +13,8 @@ export class AIExecutor extends AbstractExecutor {
           return this.executeSummarize(context, config);
         case "EXTRACT_INFORMATION":
           return this.executeExtractInformation(context, config);
+        case "SCORER":
+          return this.executeScorer(context, config);
         default:
           return {
             success: false,
@@ -397,6 +399,164 @@ Please provide only the JSON output without any additional text, explanation, or
         success: false,
         error: {
           message: error instanceof Error ? error.message : "Failed to extract information",
+          details: error
+        }
+      };
+    }
+  }
+
+  private async executeScorer(context: ExecutorContext, config: AIConfig): Promise<ExecutionResult> {
+    try {
+      // Get inputs from connected nodes or config
+      const item = this.getInputValueOrConfig(context, 'input_item', config, 'item');
+      const criteria = this.getInputValueOrConfig(context, 'input_criteria', config, 'criteria');
+      const additionalContext = this.getInputValueOrConfig(context, 'input_additionalContext', config, 'additionalContext');
+      
+      if (!item) {
+        return {
+          success: false,
+          error: { message: "Item to score is required" }
+        };
+      }
+      
+      if (!criteria) {
+        return {
+          success: false,
+          error: { message: "Scoring criteria are required" }
+        };
+      }
+      
+      if (!config.model) {
+        return {
+          success: false,
+          error: { message: "AI model selection is required" }
+        };
+      }
+      
+      // Determine if justification is required
+      const includeJustification = config.includeJustification === true;
+      
+      // Create a comprehensive system prompt for scoring
+      const systemPrompt = `You are an expert but STRICT evaluator. Your task is to assign a numerical score from 0 to 100 and quantitatively assess the quality of a given entity based on specified criteria. Do not be lenient. The bar is VERY VERY HIGH.
+
+SCORING GUIDELINES:
+- Assign a score from 0 to 100, where 0 is the lowest possible quality and 100 is the highest possible quality
+- The bar is VERY HIGH, so don't just give out 100s easily
+- Be objective and consistent in your evaluation
+- Base your score strictly on the provided criteria
+- Consider the entire entity, not just parts of it
+- Be precise in your assessment
+
+CRITERIA FOR EVALUATION:
+${criteria}
+
+${additionalContext ? `ADDITIONAL CONTEXT:\n${additionalContext}\n` : ''}
+
+OUTPUT FORMAT:
+You must respond with a valid JSON object in the following format:
+{
+  "score": <numerical_score_between_0_and_100>${includeJustification ? ',\n  "justification": "<detailed_explanation_of_how_the_score_was_determined>"' : ''}
+}
+
+Do not include any preamble, explanation, or additional text outside of this JSON object.`;
+      
+      // Prepare messages for the AI
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `ITEM TO SCORE:\n${item}` }
+      ];
+      
+      // Make the API request
+      const response = await fetch('/api/ai/completion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          temperature: 0.3, // Low temperature for more consistent scoring
+          max_tokens: config.maxTokens || undefined,
+          stream: false
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+      }
+      
+      const data = await response.json() as OpenRouterResponse;
+      
+      // Extract the AI's response
+      const aiResponse = data.choices[0].message.content;
+      const tokensUsed = data.usage?.total_tokens || 0;
+      const actualModel = data.model;
+      
+      // Try to parse the JSON response
+      let scoringResult: any;
+      try {
+        // Remove any potential markdown code blocks wrapping
+        const jsonText = aiResponse.replace(/```json\n?|\n?```/g, '').trim();
+        scoringResult = JSON.parse(jsonText);
+      } catch (err) {
+        return {
+          success: false,
+          error: {
+            message: "Failed to parse AI response as JSON",
+            details: {
+              aiResponse,
+              parsingError: err instanceof Error ? err.message : "Unknown error"
+            }
+          }
+        };
+      }
+      
+      // Validate the score
+      if (typeof scoringResult.score !== 'number' || 
+          scoringResult.score < 0 || 
+          scoringResult.score > 100) {
+        return {
+          success: false,
+          error: {
+            message: "Invalid score in AI response. Score must be a number between 0 and 100.",
+            details: {
+              scoreReceived: scoringResult.score,
+              aiResponse
+            }
+          }
+        };
+      }
+      
+      // Round the score to the nearest integer to enforce scoring precision
+      const roundedScore = Math.round(scoringResult.score);
+      
+      // Prepare the output data
+      const outputData: Record<string, any> = {
+        output_score: roundedScore,
+        model: actualModel,
+        tokensUsed: tokensUsed,
+        _output_types: {
+          output_score: 'number'
+        }
+      };
+      
+      // Add justification if it was requested
+      if (includeJustification && scoringResult.justification) {
+        outputData.output_justification = scoringResult.justification;
+        outputData._output_types.output_justification = 'string';
+      }
+      
+      return {
+        success: true,
+        data: outputData
+      };
+    } catch (error) {
+      console.error("Error executing Scorer action:", error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : "Failed to generate score",
           details: error
         }
       };

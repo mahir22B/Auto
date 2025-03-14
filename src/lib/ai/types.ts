@@ -1,5 +1,5 @@
 // src/lib/ai/types.ts
-export type AIAction = 'ASK_AI' | 'SUMMARIZE' | 'EXTRACT_INFORMATION';
+export type AIAction = 'ASK_AI' | 'SUMMARIZE' | 'EXTRACT_INFORMATION' | 'SCORER';
 
 export interface AIConfig {
   action: AIAction;
@@ -24,6 +24,12 @@ export interface AIConfig {
     description?: string;
   }>;
   additionalContext?: string;
+
+  // For SCORER action
+  item?: string;
+  criteria?: string;
+  includeJustification?: boolean;
+  loopMode?: boolean;
 }
 
 export interface AINode {

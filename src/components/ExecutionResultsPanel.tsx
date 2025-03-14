@@ -424,6 +424,68 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
 
+  const renderScorerResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to generate score"}
+        </div>
+      );
+    }
+    
+    const score = result.data.output_score;
+    const justification = result.data.output_justification;
+    const model = result.data.model;
+    
+    const provider = getProviderDetails(model);
+    
+    return (
+      <div className="space-y-4 p-4">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`text-${provider.color}-600 font-medium flex items-center gap-1`}>
+              <div className={`w-2 h-2 bg-${provider.color}-500 rounded-full`}></div>
+              {provider.name}
+            </span>
+            <span className="text-sm text-gray-500">
+              {model ? model.split('/')[1] : 'Unknown model'}
+            </span>
+          </div>
+          
+          {/* Score Display */}
+          <div className="flex flex-col items-center mb-6">
+            <div className="text-lg font-semibold mb-2">Score Result</div>
+            <div className="w-full max-w-sm bg-gray-200 rounded-full h-6 mb-2">
+              <div 
+                className="h-6 rounded-full bg-blue-600 text-white text-center text-sm font-medium leading-6"
+                style={{ width: `${score}%` }}
+              >
+                {score}/100
+              </div>
+            </div>
+            <div className="flex justify-between w-full max-w-sm text-xs text-gray-500">
+              <span>0</span>
+              <span>25</span>
+              <span>50</span>
+              <span>75</span>
+              <span>100</span>
+            </div>
+          </div>
+          
+          {/* Justification if available */}
+          {justification && (
+            <div className="mt-4">
+              <div className="text-sm font-medium mb-2">Justification:</div>
+              <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md border border-gray-100 max-h-64 overflow-y-auto text-sm">
+                {justification}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderSummarizerResults = (nodeId: string, result: any) => {
     if (!result.success || !result.data) {
       return (
@@ -777,6 +839,8 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
               return renderSummarizerResults(nodeId, result);
             } else if (node.data.config.action === "EXTRACT_INFORMATION") {  
               return renderExtractInformationResults(nodeId, result);
+            } else if (node.data.config.action === "SCORER") {
+              return renderScorerResults(nodeId, result);
             }
             break;
     }
