@@ -7,6 +7,7 @@ import { GDriveExecutor } from '../gdrive/executor';
 import { GDocsExecutor } from '../gdocs/executor';
 import { SlackExecutor } from '../slack/executor';
 import { AIExecutor } from '../ai/executor'; 
+import { HubspotExecutor } from '../hubspot/executor';
 
 
 
@@ -18,6 +19,7 @@ ExecutorRegistry.register('gdrive', GDriveExecutor);
 ExecutorRegistry.register('gdocs', GDocsExecutor);
 ExecutorRegistry.register('slack', SlackExecutor);
 ExecutorRegistry.register('ai', AIExecutor);
+ExecutorRegistry.register('hubspot', HubspotExecutor);
 
 
 

@@ -992,17 +992,19 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                       </SelectTrigger>
                       <SelectContent>
                         {(config.availableColumns || field.options)?.map(
-                          (option: string) => (
+                          (option: string | { value: string, label: string }) => {
+                            const optionValue = typeof option === 'string' ? option : option.value;
+                            const optionLabel = typeof option === 'string' ? option.replace(/_/g, " ") : option.label;
+                            return(
                             <SelectItem
-                              key={option}
-                              value={option}
-                              disabled={(config[field.name] || []).includes(
-                                option
-                              )}
+                              key={optionValue}
+                              value={optionValue}
+                              disabled={(config[field.name] || []).includes(optionValue)}
                             >
-                              {option.replace(/_/g, " ")}
+                              {optionLabel}
                             </SelectItem>
-                          )
+                            )
+                          }
                         )}
                       </SelectContent>
                     </Select>

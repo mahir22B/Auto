@@ -29,6 +29,7 @@ const nodeTypes = {
   sheets: FlowNode,
   gdocs: FlowNode,
   slack: FlowNode,
+  hubspot: FlowNode
 };
 
 const edgeTypes = {
@@ -459,6 +460,8 @@ const FlowBuilder = ({
           defaultEdgeOptions={{ type: 'custom' }}
           deleteKeyCode={null}
           proOptions={{ hideAttribution: true }}
+          minZoom={0.1}
+          maxZoom={4} 
         >
           <Background />
         </ReactFlow>

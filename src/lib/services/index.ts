@@ -4,6 +4,8 @@ import { SHEETS_ACTIONS } from "../sheets/actions";
 import { GDOCS_ACTIONS } from "../gdocs/actions";
 import { SLACK_ACTIONS } from "../slack/actions";
 import { AI_ACTIONS } from "../ai/actions"; // Add this import
+import { HUBSPOT_ACTIONS } from "../hubspot/actions";
+
 
 
 export interface Port {
@@ -143,6 +145,23 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/drive.metadata.readonly"
+    ],
+  },
+  hubspot: {
+    id: "hubspot",
+    name: "HubSpot",
+    description: "Manage CRM data in HubSpot",
+    icon: "/icons/hubspot.svg",
+    actions: HUBSPOT_ACTIONS,
+    authScopes: [
+      "crm.objects.companies.read",
+      "crm.objects.companies.write",
+      "crm.objects.contacts.read",
+      "crm.objects.contacts.write",
+      "crm.objects.deals.read",
+      "crm.schemas.companies.read",
+      "crm.schemas.contacts.read",
+      "crm.schemas.deals.read"
     ],
   },
 };

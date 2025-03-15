@@ -8,6 +8,10 @@ const AUTH_ENDPOINTS = {
   slack: {
     auth: 'https://slack.com/oauth/v2/authorize',
     token: 'https://slack.com/api/oauth.v2.access'
+  },
+  hubspot: {
+    auth: 'https://app.hubspot.com/oauth/authorize',
+    token: 'https://api.hubapi.com/oauth/v1/token'
   }
 };
 
@@ -37,13 +41,15 @@ export class OAuthProvider {
   }
   
   private getAuthProvider(): string {
-    // Map service ID to auth provider (google or slack)
+    // Map service ID to auth provider (google, slack, or hubspot)
     // This allows mapping multiple services to the same auth provider
     if (!this.config) throw new Error('Not initialized');
     
     const serviceId = this.config.serviceId;
     if (serviceId === 'slack') {
       return 'slack';
+    } else if (serviceId === 'hubspot') {
+      return 'hubspot';
     }
     
     // Default to google auth for all other services
@@ -66,6 +72,16 @@ export class OAuthProvider {
         redirect_uri: this.getRedirectUri(),
         scope: service.authScopes.join(' '),
         state: this.config.serviceId  // Store the actual service in state parameter
+      });
+      
+      return `${authEndpoint}?${params.toString()}`;
+    } else if (authProvider === 'hubspot') {
+      // HubSpot auth parameters
+      const params = new URLSearchParams({
+        client_id: this.config.clientId,
+        redirect_uri: this.getRedirectUri(),
+        scope: service.authScopes.join(' '),
+        state: this.config.serviceId,
       });
       
       return `${authEndpoint}?${params.toString()}`;
@@ -99,6 +115,8 @@ export class OAuthProvider {
     
     if (authProvider === 'slack') {
       // No grant_type required for Slack
+    } else if (authProvider === 'hubspot') {
+      formData.append('grant_type', 'authorization_code');
     } else {
       formData.append('grant_type', 'authorization_code');
     }
@@ -127,6 +145,16 @@ export class OAuthProvider {
         expiry_date: Date.now() + (tokenData.expires_in || 86400) * 1000,
         team_id: tokenData.team?.id || tokenData.team_id,
         team_name: tokenData.team?.name || tokenData.team_name
+      };
+    } else if (authProvider === 'hubspot') {
+      // HubSpot token response
+      return {
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expiry_date: Date.now() + (tokenData.expires_in || 86400) * 1000,
+        hub_id: tokenData.hub_id,
+        hub_domain: tokenData.hub_domain,
+        token_type: tokenData.token_type
       };
     }
     
