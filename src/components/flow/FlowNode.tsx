@@ -57,7 +57,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
   const [nodeWidth, setNodeWidth] = useState(320); // Default width
   const updateNodeInternals = useUpdateNodeInternals(); // Add this line
 
-
   // Add state for dynamic options loading
   const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>(
     {}
@@ -211,8 +210,13 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
       (updates.messageInformation &&
         data.service === "slack" &&
         config.action === "READ_MESSAGES") ||
-      (updates.dataFields && data.service === "ai" && config.action === "EXTRACT_INFORMATION") || 
-      (updates.extractList !== undefined && data.service === "ai" && config.action === "EXTRACT_INFORMATION")
+      (updates.dataFields &&
+        data.service === "ai" &&
+        config.action === "EXTRACT_INFORMATION") ||
+      (updates.extractList !== undefined &&
+        data.service === "ai" &&
+        config.action === "EXTRACT_INFORMATION") ||
+        (updates.properties && data.service === "hubspot") 
     ) {
       if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
         const ports = actions[newConfig.action].getDynamicPorts(newConfig);
@@ -281,8 +285,8 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
       ((data.service === "sheets" && config.selectedColumns) ||
         (data.service === "gmail" &&
           (config.emailInformation || config.maxResults !== undefined)) ||
-        (data.service === "ai" && 
-          config.action === "EXTRACT_INFORMATION" && 
+        (data.service === "ai" &&
+          config.action === "EXTRACT_INFORMATION" &&
           (config.dataFields || config.extractList !== undefined)))
     ) {
       const ports = actions[config.action].getDynamicPorts(config);
@@ -291,7 +295,6 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
         ports,
       });
       updateNodeInternals(id);
-
     }
   }, [
     config.selectedColumns,
@@ -301,7 +304,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     config.extractList,
     config.action,
     id,
-    updateNodeInternals
+    updateNodeInternals,
   ]);
 
   const renderPorts = () => {
@@ -756,21 +759,28 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                   <strong>{field.label}</strong>
                 </Label>
 
-                {field.type === 'dataFields' ? (
+                {field.type === "dataFields" ? (
                   <DataFieldsEditor
                     value={config[field.name] || []}
-                    onChange={(value) => handleConfigChange({ [field.name]: value })}
+                    onChange={(value) =>
+                      handleConfigChange({ [field.name]: value })
+                    }
                   />
-                ) : field.type === 'boolean' ? (
+                ) : field.type === "boolean" ? (
                   <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
                       id={field.name}
                       checked={!!config[field.name]}
-                      onChange={(e) => handleConfigChange({ [field.name]: e.target.checked })}
+                      onChange={(e) =>
+                        handleConfigChange({ [field.name]: e.target.checked })
+                      }
                       className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
-                    <label htmlFor={field.name} className="text-sm text-gray-700">
+                    <label
+                      htmlFor={field.name}
+                      className="text-sm text-gray-700"
+                    >
                       {field.label}
                     </label>
                   </div>
@@ -951,25 +961,50 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                 ) : field.type === "multiselect" ? (
                   <div className="space-y-2">
                     <div className="flex flex-wrap gap-2">
-                      {(config[field.name] || []).map((value: string) => (
-                        <div
-                          key={value}
-                          className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm flex items-center gap-1"
-                        >
-                          <span className="truncate">{value}</span>
-                          <button
-                            onClick={() => {
-                              const newValues = (
-                                config[field.name] || []
-                              ).filter((v: string) => v !== value);
-                              handleConfigChange({ [field.name]: newValues });
-                            }}
-                            className="hover:text-blue-900"
+                      {(config[field.name] || []).map((value: string) => {
+                        // Find the option to get its label
+                        let displayName = value;
+                        const option = (
+                          config.availableColumns ||
+                          field.options ||
+                          []
+                        ).find((opt: any) =>
+                          typeof opt === "object"
+                            ? opt.value === value
+                            : opt === value
+                        );
+
+                        if (option) {
+                          // Use the label if available, otherwise format the value
+                          displayName =
+                            typeof option === "object"
+                              ? option.label
+                              : option.replace(/_/g, " ");
+                        } else {
+                          // Format the ID if no matching option found
+                          displayName = value.replace(/_/g, " ");
+                        }
+
+                        return (
+                          <div
+                            key={value}
+                            className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm flex items-center gap-1"
                           >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
+                            <span className="truncate">{displayName}</span>
+                            <button
+                              onClick={() => {
+                                const newValues = (
+                                  config[field.name] || []
+                                ).filter((v: string) => v !== value);
+                                handleConfigChange({ [field.name]: newValues });
+                              }}
+                              className="hover:text-blue-900"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                     <Select
                       value=""
@@ -992,18 +1027,28 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
                       </SelectTrigger>
                       <SelectContent>
                         {(config.availableColumns || field.options)?.map(
-                          (option: string | { value: string, label: string }) => {
-                            const optionValue = typeof option === 'string' ? option : option.value;
-                            const optionLabel = typeof option === 'string' ? option.replace(/_/g, " ") : option.label;
-                            return(
-                            <SelectItem
-                              key={optionValue}
-                              value={optionValue}
-                              disabled={(config[field.name] || []).includes(optionValue)}
-                            >
-                              {optionLabel}
-                            </SelectItem>
-                            )
+                          (
+                            option: string | { value: string; label: string }
+                          ) => {
+                            const optionValue =
+                              typeof option === "string"
+                                ? option
+                                : option.value;
+                            const optionLabel =
+                              typeof option === "string"
+                                ? option.replace(/_/g, " ")
+                                : option.label;
+                            return (
+                              <SelectItem
+                                key={optionValue}
+                                value={optionValue}
+                                disabled={(config[field.name] || []).includes(
+                                  optionValue
+                                )}
+                              >
+                                {optionLabel}
+                              </SelectItem>
+                            );
                           }
                         )}
                       </SelectContent>

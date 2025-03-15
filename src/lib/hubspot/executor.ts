@@ -62,7 +62,7 @@ export class HubspotExecutor extends AbstractExecutor {
       
       const companies = response.results;
       
-      // Generate outputs based on the number of companies and useList flag
+      // Generate outputs based on the number of companies
       const outputs: Record<string, any> = {
         output_companies: companies,
         _output_types: {
@@ -70,12 +70,15 @@ export class HubspotExecutor extends AbstractExecutor {
         }
       };
       
+      // Determine if results should be lists based on companies count and limit setting
+      const isMultipleCompanies = companies.length > 1 || (config.limit && parseInt(config.limit.toString()) > 1);
+      
       // Extract properties into outputs
       for (const property of config.properties) {
         const propertyKey = `output_${property}`;
         
-        if (companies.length > 1 || config.useList === true) {
-          // Return as list if multiple companies or useList is true
+        if (isMultipleCompanies) {
+          // Return as list for multiple companies
           outputs[propertyKey] = companies.map(company => company.properties[property] || null);
           outputs._output_types[propertyKey] = 'string_array';
         } else if (companies.length === 1) {

@@ -191,47 +191,55 @@ export const HUBSPOT_ACTIONS: Record<string, ActionConfig> = {
         type: 'number',
         required: false,
         placeholder: '[Optional] 5'
-      },
-      // {
-      //   name: 'useList',
-      //   label: 'Use List?',
-      //   type: 'boolean',
-      //   required: false,
-      //   placeholder: 'Output as lists even for single companies'
-      // }
+      }
     ],
     ports: {
       inputs: [],
-      outputs: []
+      outputs: [
+        // Default output port for companies array
+        // { id: 'output_companies', label: 'Companies', type: 'array', isActive: true, isListType: true }
+      ]
     },
-    getDynamicPorts: (config: any) => {
-      if (!config.properties) return { inputs: [], outputs: [] };
-      
-      // Generate output ports based on selected properties
-      const outputs = config.properties.map((property: string) => {
-        return {
-          id: `output_${property}`,
-          label: property,
-          type: 'string',
-          isActive: true,
-          isListType: config.useList === true || (config.limit && parseInt(config.limit) > 1)
-        };
-      });
-      
-      // Add a companies output for the full data
-      outputs.push({
-        id: 'output_companies',
-        label: 'Companies',
-        type: 'array',
-        isActive: true,
-        isListType: true
-      });
-      
-      return {
-        inputs: [],
-        outputs
-      };
-    }
+
+getDynamicPorts: (config: any) => {
+  if (!config.properties || !Array.isArray(config.properties) || config.properties.length === 0) {
+    return {
+      inputs: [],
+      outputs: []
+    };
+  }
+  
+  // Determine if results should be lists based on limit
+  const isListOutput = !config.limit || parseInt(config.limit) > 1;
+  
+  // Generate output ports based on selected properties only
+  const outputs = [];
+  
+  // Add ports for each selected property
+  config.properties.forEach((propertyId: string) => {
+    // Find the option to get its label
+    const options = HUBSPOT_ACTIONS.COMPANY_READER.configFields.find(f => f.name === 'properties')?.options || [];
+    
+    // Find the matching option
+    const option = options.find((opt: any) => opt.value === propertyId);
+    
+    // Use label if available, otherwise use the property ID
+    const label = option ? option.label : propertyId.replace(/_/g, ' ');
+    
+    outputs.push({
+      id: `output_${propertyId}`,
+      label: label, 
+      type: 'string',
+      isActive: true,
+      isListType: isListOutput
+    });
+  });
+  
+  return {
+    inputs: [],
+    outputs
+  };
+}
   }
   // Other HubSpot actions would be defined here
 };
