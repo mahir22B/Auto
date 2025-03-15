@@ -486,6 +486,79 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
 
+  const renderHubspotResults = (nodeId: string, result: any) => {
+    if (!result.success || !result.data) {
+      return (
+        <div className="text-red-500">
+          {result.error?.message || "Failed to fetch HubSpot data"}
+        </div>
+      );
+    }
+  
+    // Get all output fields (those that start with "output_")
+    const outputFields = Object.keys(result.data)
+      .filter(key => key.startsWith('output_') && !key.includes('_types'))
+      .sort();
+    
+    if (outputFields.length === 0) {
+      return (
+        <div className="p-2 text-gray-500 italic">
+          No data found or no properties selected
+        </div>
+      );
+    }
+  
+    return (
+      <div className="space-y-4 p-4">
+        <div className="bg-white rounded-lg border p-4">
+          {outputFields.map(fieldKey => {
+            const fieldName = fieldKey.replace('output_', '');
+            const fieldValue = result.data[fieldKey];
+            
+            // Format the field display name to be more readable
+            const displayName = fieldName
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, l => l.toUpperCase());
+            
+            // Check if value is an array
+            const isArray = Array.isArray(fieldValue);
+            
+            return (
+              <div key={fieldKey} className="mb-4 last:mb-0">
+                <div className="font-medium text-gray-700 mb-1">{displayName}</div>
+                {isArray ? (
+                  <div className="bg-gray-50 rounded border border-gray-200 p-2">
+                    {fieldValue.length > 0 ? (
+                      <div className="space-y-2">
+                        {fieldValue.map((item: any, index: number) => (
+                          <div key={index} className="p-2 bg-white border rounded">
+                            {typeof item === 'object' ? 
+                              JSON.stringify(item) : 
+                              String(item ?? 'N/A')}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-gray-500 italic">No data available</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded border border-gray-200 p-2">
+                    {fieldValue !== null && fieldValue !== undefined ? 
+                      (typeof fieldValue === 'object' ? 
+                        JSON.stringify(fieldValue) : 
+                        String(fieldValue)) : 
+                      'N/A'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderSummarizerResults = (nodeId: string, result: any) => {
     if (!result.success || !result.data) {
       return (
@@ -843,6 +916,12 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
               return renderScorerResults(nodeId, result);
             }
             break;
+
+          case "hubspot":
+        if (node.data.config.action === "COMPANY_READER") {
+          return renderHubspotResults(nodeId, result);
+        }
+        break;
     }
 
     // Default fallback renderer

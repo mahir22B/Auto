@@ -107,6 +107,8 @@ export class OAuthProvider {
     const authProvider = this.getAuthProvider();
     const tokenEndpoint = AUTH_ENDPOINTS[authProvider].token;
     
+    console.log(`Handling ${authProvider} callback with code`);
+    
     const formData = new URLSearchParams();
     formData.append('code', code);
     formData.append('client_id', this.config.clientId);
@@ -121,6 +123,8 @@ export class OAuthProvider {
       formData.append('grant_type', 'authorization_code');
     }
     
+    console.log(`Making token request to ${tokenEndpoint}`);
+    
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers: {
@@ -131,6 +135,7 @@ export class OAuthProvider {
     
     if (!response.ok) {
       const errorData = await response.json();
+      console.error(`Token request failed for ${authProvider}:`, errorData);
       throw new Error(`Token request failed: ${errorData.error || response.statusText}`);
     }
     
@@ -148,6 +153,12 @@ export class OAuthProvider {
       };
     } else if (authProvider === 'hubspot') {
       // HubSpot token response
+      console.log('HubSpot token response received:', {
+        hasAccessToken: !!tokenData.access_token,
+        hasRefreshToken: !!tokenData.refresh_token,
+        expiresIn: tokenData.expires_in,
+      });
+      
       return {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,

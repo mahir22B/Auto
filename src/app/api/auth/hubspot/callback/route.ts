@@ -7,6 +7,8 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
   const state = searchParams.get('state');
 
+  console.log('HubSpot callback received:', { code: !!code, state });
+
   if (!code) {
     return Response.json({ error: 'Invalid request - missing code' }, { status: 400 });
   }
@@ -26,6 +28,12 @@ export async function GET(request: Request) {
 
   try {
     const tokens = await auth.handleCallback(code);
+    console.log('HubSpot tokens received:', {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      expiryDate: tokens.expiry_date,
+      expiryTime: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : 'none'
+    });
     
     const html = `
       <!DOCTYPE html>
@@ -33,6 +41,11 @@ export async function GET(request: Request) {
         <body>
           <script>
             const tokens = ${JSON.stringify(tokens)};
+            console.log("Storing HubSpot tokens:", {
+              hasAccessToken: !!tokens.access_token,
+              hasRefreshToken: !!tokens.refresh_token,
+              expiryDate: tokens.expiry_date 
+            });
             localStorage.setItem('${serviceId}_tokens', JSON.stringify(tokens));
             
             try {
@@ -58,7 +71,7 @@ export async function GET(request: Request) {
       headers: { 'Content-Type': 'text/html' },
     });
   } catch (error) {
-    console.error('Auth callback error:', error);
+    console.error('HubSpot auth callback error:', error);
     return Response.json({ error: 'Authentication failed' }, { status: 500 });
   }
 }

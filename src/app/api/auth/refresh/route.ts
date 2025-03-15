@@ -1,8 +1,68 @@
 // src/app/api/auth/refresh/route.ts
 
-import { SERVICES } from '@/lib/services';
+import { SERVICES } from "@/lib/services";
 
-const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+// Define token endpoints for each service type
+const TOKEN_ENDPOINTS = {
+  google: 'https://oauth2.googleapis.com/token',
+  hubspot: 'https://api.hubapi.com/oauth/v1/token',
+  slack: 'https://slack.com/api/oauth.v2.access'  // For future reference
+};
+
+// Service-specific token refresh handlers
+const refreshHandlers = {
+  // Google refresh handler
+  google: async (refresh_token: string): Promise<Response> => {
+    const response = await fetch(TOKEN_ENDPOINTS.google, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        refresh_token: refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
+    
+    return response;
+  },
+  
+  // HubSpot refresh handler
+  hubspot: async (refresh_token: string): Promise<Response> => {
+    const response = await fetch(TOKEN_ENDPOINTS.hubspot, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.HUBSPOT_CLIENT_ID!,
+        client_secret: process.env.HUBSPOT_CLIENT_SECRET!,
+        refresh_token: refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
+    
+    return response;
+  },
+  
+  // Placeholder for Slack - implement if needed
+  slack: async (refresh_token: string): Promise<Response> => {
+    throw new Error('Slack token refresh not implemented yet');
+  }
+};
+
+// Determine service type from service ID
+const getServiceType = (service: string): 'google' | 'hubspot' | 'slack' => {
+  if (service === 'hubspot') {
+    return 'hubspot';
+  } else if (service === 'slack') {
+    return 'slack';
+  }
+  // Default to Google for all Google services (gmail, gdrive, sheets, etc.)
+  return 'google';
+};
 
 export async function POST(request: Request) {
   try {
@@ -16,27 +76,40 @@ export async function POST(request: Request) {
     if (!refresh_token) {
       return Response.json({ error: 'Refresh token required' }, { status: 400 });
     }
-
-    const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        refresh_token: refresh_token,
-        grant_type: 'refresh_token',
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      return Response.json({ error: error.error_description || 'Token refresh failed' }, { status: response.status });
+    
+    // Determine which service type we're dealing with
+    const serviceType = getServiceType(service);
+    
+    // Get the appropriate refresh handler
+    const refreshHandler = refreshHandlers[serviceType];
+    
+    if (!refreshHandler) {
+      return Response.json({ error: `Token refresh not supported for ${service}` }, { status: 400 });
     }
-
-    const data = await response.json();
-    return Response.json(data);
+    
+    console.log(`Refreshing ${serviceType} token for service: ${service}`);
+    
+    try {
+      // Call the service-specific handler
+      const response = await refreshHandler(refresh_token);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        return Response.json(
+          { error: error.error_description || `Token refresh failed: ${response.status}` }, 
+          { status: response.status }
+        );
+      }
+      
+      const data = await response.json();
+      return Response.json(data);
+    } catch (error) {
+      console.error(`Error refreshing ${serviceType} token:`, error);
+      return Response.json(
+        { error: error instanceof Error ? error.message : 'Token refresh failed' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Token refresh error:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
