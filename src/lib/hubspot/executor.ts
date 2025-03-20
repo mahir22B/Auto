@@ -154,31 +154,126 @@ export class HubspotExecutor extends AbstractExecutor {
     }
   }
 
-  async execute(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
-    try {
-      console.log("Executing HubSpot action:", config.action);
+  // Add this method to the HubspotExecutor class in src/lib/hubspot/executor.ts
 
-      switch (config.action) {
-        case 'COMPANY_READER':
-          return this.executeCompanyReader(context, config);
-        // Add cases for other actions when implemented
-        default:
-          return {
-            success: false,
-            error: {
-              message: `Unsupported HubSpot action: ${config.action}`
-            }
-          };
+  private async executeContactReader(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
+    try {
+      // Validate configuration
+      if (!config.properties || config.properties.length === 0) {
+        throw new Error("No contact properties selected");
       }
+      
+      // Ensure we always have email property for log output
+      let requestProperties = [...config.properties];
+      if (!requestProperties.includes('email')) {
+        requestProperties.push('email');
+      }
+      if (!requestProperties.includes('createdate')) {
+        requestProperties.push('createdate');
+      }
+      
+      // Prepare API request parameters
+      const properties = requestProperties.join(',');
+      
+      // Construct the API URL with query parameters
+      // Sort by creation date to ensure consistent ordering
+      const sortParams = 'sort=-createdate&sortBy=createdate&direction=DESCENDING';
+      const endpoint = `crm/v3/objects/contacts?properties=${properties}&${sortParams}`;
+      
+      console.log(`Executing HubSpot Contact Reader with ${requestProperties.length} properties`);
+      
+      // Call the HubSpot API with our enhanced request function
+      const response = await this.makeHubspotRequest(endpoint, { method: "GET" }, context) as HubspotContactsResponse;
+      
+      if (!response.results || !Array.isArray(response.results)) {
+        throw new Error("No contacts found in response");
+      }
+      
+      let contacts = response.results;
+      
+      // Log the number of contacts received
+      console.log(`Raw API response received ${contacts.length} contacts`);
+      
+      // Log the first few contacts and their creation dates for debugging
+      contacts.slice(0, 5).forEach((contact, index) => {
+        console.log(`Contact ${index + 1}: ${contact.properties.email || 'Unknown'}, Created: ${contact.properties.createdate || 'Unknown date'}`);
+      });
+      
+      // Sort contacts by createdate in descending order (newest first)
+      contacts.sort((a, b) => {
+        const dateA = a.properties.createdate ? new Date(a.properties.createdate).getTime() : 0;
+        const dateB = b.properties.createdate ? new Date(b.properties.createdate).getTime() : 0;
+        return dateB - dateA; // descending order (newest first)
+      });
+      
+      // Log the contacts after sorting to verify
+      console.log("After sorting (newest first):");
+      contacts.slice(0, 5).forEach((contact, index) => {
+        console.log(`Contact ${index + 1}: ${contact.properties.email || 'Unknown'}, Created: ${contact.properties.createdate || 'Unknown date'}`);
+      });
+      
+      // Generate outputs
+      const outputs: Record<string, any> = {
+        _output_types: {}
+      };
+      
+      // Extract properties the user selected - always as lists
+      for (const property of config.properties) {
+        const propertyKey = `output_${property}`;
+        
+        // Extract the property from each contact into an array
+        outputs[propertyKey] = contacts.map(contact => contact.properties[property] || null);
+        outputs._output_types[propertyKey] = 'string_array';
+      }
+      
+      // Add metadata for display purposes only
+      outputs.contactCount = contacts.length;
+      
+      return {
+        success: true,
+        data: outputs
+      };
     } catch (error) {
-      console.error("HubSpot executor error:", error);
+      console.error("Error reading HubSpot contacts:", error);
       return {
         success: false,
         error: {
-          message: error instanceof Error ? error.message : "An error occurred during execution",
+          message: error instanceof Error ? error.message : "Failed to read contacts",
           details: error
         }
       };
     }
   }
+
+
+async execute(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
+  try {
+    console.log("Executing HubSpot action:", config.action);
+
+    switch (config.action) {
+      case 'COMPANY_READER':
+        return this.executeCompanyReader(context, config);
+      case 'CONTACT_READER':
+        return this.executeContactReader(context, config);
+      // Add cases for other actions when implemented
+      default:
+        return {
+          success: false,
+          error: {
+            message: `Unsupported HubSpot action: ${config.action}`
+          }
+        };
+    }
+  } catch (error) {
+    console.error("HubSpot executor error:", error);
+    return {
+      success: false,
+      error: {
+        message: error instanceof Error ? error.message : "An error occurred during execution",
+        details: error
+      }
+    };
+  }
+}
+
 }

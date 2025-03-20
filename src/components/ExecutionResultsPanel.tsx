@@ -920,6 +920,8 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
           case "hubspot":
         if (node.data.config.action === "COMPANY_READER") {
           return renderHubspotResults(nodeId, result);
+        }else if (node.data.config.action === "CONTACT_READER") {
+          return renderHubspotResults(nodeId, result);
         }
         break;
     }

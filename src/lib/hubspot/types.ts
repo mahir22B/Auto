@@ -44,3 +44,22 @@ export interface HubspotCompaniesResponse {
   };
   total?: number;
 }
+
+export interface HubspotContact {
+    id: string;
+    properties: Record<string, any>;
+    createdAt: string;
+    updatedAt: string;
+    archived: boolean;
+  }
+  
+  export interface HubspotContactsResponse {
+    results: HubspotContact[];
+    paging?: {
+      next?: {
+        after: string;
+        link: string;
+      }
+    };
+    total?: number;
+  }

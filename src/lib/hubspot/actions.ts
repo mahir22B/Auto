@@ -240,6 +240,87 @@ getDynamicPorts: (config: any) => {
     outputs
   };
 }
+  },
+  // Add this to src/lib/hubspot/actions.ts
+// Find the HUBSPOT_ACTIONS object and add this new action
+
+// Inside the HUBSPOT_ACTIONS object:
+CONTACT_READER: {
+  id: 'CONTACT_READER',
+  name: 'HubSpot Contact Reader',
+  description: 'Load in Contact data from a HubSpot CRM. Outputs can include contact details like names, email, job title, lifecycle stage, etc.',
+  configFields: [
+    {
+      name: 'properties',
+      label: 'Contact Properties',
+      type: 'multiselect',
+      required: true,
+      options: [
+        { value: 'city', label: 'City' },
+        { value: 'company', label: 'Company Name' },
+        { value: 'createdate', label: 'Create Date' },
+        { value: 'email', label: 'Email' },
+        { value: 'firstname', label: 'First Name' },
+        { value: 'jobtitle', label: 'Job Title' },
+        { value: 'lastmodifieddate', label: 'Last Modified Date' },
+        { value: 'lastname', label: 'Last Name' },
+        { value: 'lifecyclestage', label: 'Lifecycle Stage' },
+        { value: 'twitterusername', label: 'Twitter Username' },
+        { value: 'website', label: 'Website URL' },
+        // Add more common contact properties as needed
+        { value: 'phone', label: 'Phone Number' },
+        { value: 'address', label: 'Address' },
+        { value: 'hubspot_owner_id', label: 'Contact Owner' },
+        { value: 'hs_lead_status', label: 'Lead Status' },
+        { value: 'hs_analytics_source', label: 'Original Source' },
+        { value: 'mobilephone', label: 'Mobile Phone Number' },
+        { value: 'hs_email_domain', label: 'Email Domain' },
+        { value: 'state', label: 'State/Region' },
+        { value: 'country', label: 'Country/Region' }
+      ],
+      placeholder: 'Select contact properties to fetch'
+    }
+  ],
+  ports: {
+    inputs: [],
+    outputs: [] // Will be populated dynamically based on selected properties
+  },
+  getDynamicPorts: (config: any) => {
+    if (!config.properties || !Array.isArray(config.properties) || config.properties.length === 0) {
+      return {
+        inputs: [],
+        outputs: []
+      };
+    }
+    
+    // Generate output ports based on selected properties
+    const outputs = [];
+    
+    // Add ports for each selected property - always as lists
+    config.properties.forEach((propertyId: string) => {
+      // Find the option to get its label
+      const options = HUBSPOT_ACTIONS.CONTACT_READER.configFields.find(f => f.name === 'properties')?.options || [];
+      
+      // Find the matching option
+      const option = options.find((opt: any) => opt.value === propertyId);
+      
+      // Use label if available, otherwise use the property ID
+      const label = option ? option.label : propertyId.replace(/_/g, ' ');
+      
+      outputs.push({
+        id: `output_${propertyId}`,
+        label: label, 
+        type: 'string',
+        isActive: true,
+        isListType: true // Always a list of values
+      });
+    });
+    
+    return {
+      inputs: [],
+      outputs
+    };
   }
+}
   // Other HubSpot actions would be defined here
 };
