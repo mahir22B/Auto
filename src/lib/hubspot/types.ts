@@ -12,6 +12,8 @@ export interface HubspotConfig {
   companyDomain?: string;
   engagementTypes?: string[];
 
+  companyName?: string;
+
   
   // For filtering (future expansion)
   filterType?: 'all' | 'recent' | 'filter';
@@ -68,6 +70,7 @@ export interface HubspotContactsResponse {
   };
   total?: number;
 }
+
 
 // Interfaces for Engagement types
 export interface HubspotEmail {
@@ -131,3 +134,11 @@ export interface HubspotEngagementReaderResult {
   companyDomain?: string;
   companyId?: string;
 }
+
+export interface HubspotCompanyUpdateResult {
+    companyId: string;
+    companyName: string;
+    propertiesUpdated: string[];
+    success: boolean;
+    errors?: any;
+  }

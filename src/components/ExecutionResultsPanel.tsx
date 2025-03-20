@@ -559,6 +559,131 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
     );
   };
 
+// HubSpot Engagement Reader renderer for displaying the different engagement types
+const renderHubspotEngagementResults = (nodeId: string, result: any) => {
+  if (!result.success || !result.data) {
+    return (
+      <div className="text-red-500">
+        {result.error?.message || "Failed to fetch HubSpot engagement data"}
+      </div>
+    );
+  }
+
+  // Extract the different engagement types from the result
+  const emails = result.data.output_emails || [];
+  const notes = result.data.output_notes || [];
+  const meetings = result.data.output_meetings || [];
+  const otherCommunications = result.data.output_other_communications || [];
+  
+  // Format emails data
+  const emailsText = emails.length > 0 
+    ? JSON.stringify(emails).replace(/^\[|\]$/g, '').replace(/},/g, '}\n')
+    : '[]';
+  
+  // Format notes data
+  const notesText = notes.length > 0 
+    ? JSON.stringify(notes).replace(/^\[|\]$/g, '').replace(/},/g, '}\n')
+    : '[]';
+  
+  // Format meetings data
+  const meetingsText = meetings.length > 0 
+    ? JSON.stringify(meetings).replace(/^\[|\]$/g, '').replace(/},/g, '}\n')
+    : '[]';
+  
+  // Format other communications data
+  const otherCommsText = otherCommunications.length > 0 
+    ? JSON.stringify(otherCommunications).replace(/^\[|\]$/g, '').replace(/},/g, '}\n')
+    : '[]';
+  
+  return (
+    <div className="p-4">
+      <div className="bg-white rounded-lg border p-6">
+        <div className="space-y-6">
+          {/* Email section */}
+          <div>
+            <h3 className="text-lg font-medium mb-2">Read Emails: {emailsText}</h3>
+          </div>
+          
+          {/* Notes section */}
+          <div>
+            <h3 className="text-lg font-medium mb-2">Read Notes: {notesText}</h3>
+          </div>
+          
+          {/* Meetings section */}
+          <div>
+            <h3 className="text-lg font-medium mb-2">Read Meetings: {meetingsText}</h3>
+          </div>
+          
+          {/* Other communications section */}
+          <div>
+            <h3 className="text-lg font-medium mb-2">Read Other Communications: {otherCommsText}</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const renderHubspotCompanyUpdaterResults = (nodeId: string, result: any) => {
+  if (!result.success || !result.data) {
+    return (
+      <div className="text-red-500">
+        {result.error?.message || "Failed to update HubSpot company"}
+      </div>
+    );
+  }
+
+  const companyName = result.data.companyName;
+  const companyId = result.data.companyId || result.data.output_company_id;
+  const propertiesUpdated = result.data.propertiesUpdated || [];
+  const updatedValues = result.data.updatedValues || {};
+  const wasUpdated = result.data.output_updated;
+  
+  return (
+    <div className="p-4">
+      <div className="bg-white rounded-lg border p-4">
+        {wasUpdated ? (
+          <div className="space-y-3">
+            <div className="bg-green-50 p-3 rounded flex items-center text-green-700">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Successfully updated company "{companyName}"</span>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="font-medium">Company ID: {companyId}</div>
+              
+              <div className="font-medium mt-2">Updated Properties:</div>
+              {propertiesUpdated.length > 0 ? (
+                <div className="space-y-2 ml-2">
+                  {propertiesUpdated.map((prop, index) => (
+                    <div key={index} className="flex flex-col">
+                      <span className="font-medium text-gray-700">{prop}:</span>
+                      <span className="bg-gray-50 p-1 text-gray-800 overflow-hidden text-ellipsis">
+                        {updatedValues[prop] !== undefined ? String(updatedValues[prop]) : 'undefined'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-500 italic ml-2">No properties were updated</div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-amber-600 p-3 bg-amber-50 rounded">
+            Company "{companyName}" found, but no properties were updated
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+
   const renderSummarizerResults = (nodeId: string, result: any) => {
     if (!result.success || !result.data) {
       return (
@@ -922,6 +1047,10 @@ const ExecutionResultsPanel: React.FC<ExecutionResultsProps> = ({
           return renderHubspotResults(nodeId, result);
         }else if (node.data.config.action === "CONTACT_READER") {
           return renderHubspotResults(nodeId, result);
+        }else if (node.data.config.action === "ENGAGEMENT_READER") {
+          return renderHubspotEngagementResults(nodeId, result);
+        } else if (node.data.config.action === "COMPANY_UPDATER") {
+    return renderHubspotCompanyUpdaterResults(nodeId, result);
         }
         break;
     }

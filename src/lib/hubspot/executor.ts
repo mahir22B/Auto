@@ -663,6 +663,148 @@ export class HubspotExecutor extends AbstractExecutor {
     }
   }
 
+  // Add this method to src/lib/hubspot/executor.ts inside the HubspotExecutor class
+
+private async executeCompanyUpdater(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
+  try {
+    // Get company name from input or config
+    let companyName = this.getInputValueOrConfig(context, 'input_company_name', config, 'companyName');
+    
+    if (!companyName) {
+      throw new Error("Company name is required either via input port or configuration");
+    }
+    
+    if (!config.properties || config.properties.length === 0) {
+      throw new Error("At least one property must be selected for updating");
+    }
+    
+    console.log(`Executing HubSpot Company Updater for company: ${companyName}`);
+    
+    // Step 1: Search for the company by name
+    const searchPayload = {
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName: "name",
+              operator: "EQ",
+              value: companyName
+            }
+          ]
+        }
+      ],
+      properties: ["name", "hs_object_id", "domain"],
+      limit: 1
+    };
+    
+    console.log("Searching for company with name:", companyName);
+    
+    const searchResponse = await this.makeHubspotRequest(
+      "crm/v3/objects/companies/search",
+      {
+        method: "POST",
+        body: JSON.stringify(searchPayload)
+      },
+      context
+    );
+    
+    if (!searchResponse.results || searchResponse.results.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: `No company found with name: ${companyName}`,
+          details: {
+            searchTerm: companyName
+          }
+        }
+      };
+    }
+    
+    // Get the company ID and other details
+    const company = searchResponse.results[0];
+    const companyId = company.id;
+    
+    console.log(`Found company with ID: ${companyId}, preparing to update properties`);
+    
+    // Step 2: Gather the property values to update
+    const propertiesToUpdate: Record<string, any> = {};
+    
+    // For each selected property, check if there's a value from the input port
+    for (const propertyId of config.properties) {
+      const inputPortId = `input_${propertyId}`;
+      
+      // Only include properties that have connected input data
+      if (context.inputData && context.inputData[inputPortId] !== undefined) {
+        const value = context.inputData[inputPortId];
+        propertiesToUpdate[propertyId] = value;
+        console.log(`Setting property ${propertyId} to:`, value);
+      }
+    }
+    
+    // If no properties have values, return success but indicate nothing was updated
+    if (Object.keys(propertiesToUpdate).length === 0) {
+      return {
+        success: true,
+        data: {
+          output_updated: false,
+          output_company_id: companyId,
+          companyName: companyName,
+          propertiesUpdated: [],
+          message: "No property values provided for update",
+          _output_types: {
+            output_updated: 'boolean',
+            output_company_id: 'string'
+          }
+        }
+      };
+    }
+    
+    // Step 3: Send the update request to HubSpot
+    const updatePayload = {
+      properties: propertiesToUpdate
+    };
+    
+    console.log(`Sending update request for company ${companyId} with properties:`, propertiesToUpdate);
+    
+    const updateResponse = await this.makeHubspotRequest(
+      `crm/v3/objects/companies/${companyId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(updatePayload)
+      },
+      context
+    );
+    
+    console.log("Update response received:", updateResponse);
+    
+    return {
+      success: true,
+      data: {
+        output_updated: true,
+        output_company_id: companyId,
+        companyName: companyName,
+        companyId: companyId,
+        propertiesUpdated: Object.keys(propertiesToUpdate),
+        updatedValues: propertiesToUpdate,
+        message: `Successfully updated ${Object.keys(propertiesToUpdate).length} properties for company "${companyName}"`,
+        _output_types: {
+          output_updated: 'boolean',
+          output_company_id: 'string'
+        }
+      }
+    };
+  } catch (error) {
+    console.error("Error updating HubSpot company:", error);
+    return {
+      success: false,
+      error: {
+        message: error instanceof Error ? error.message : "Failed to update company",
+        details: error
+      }
+    };
+  }
+}
+
 
 
 async execute(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
@@ -676,6 +818,8 @@ async execute(context: ExecutorContext, config: HubspotConfig): Promise<Executio
         return this.executeContactReader(context, config);
       case 'ENGAGEMENT_READER':
         return this.executeEngagementReader(context, config);
+      case 'COMPANY_UPDATER':
+          return this.executeCompanyUpdater(context, config);  
       // Add cases for other actions when implemented
       default:
         return {
