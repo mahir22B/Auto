@@ -321,6 +321,95 @@ CONTACT_READER: {
       outputs
     };
   }
+},
+
+
+ENGAGEMENT_READER: {
+  id: 'ENGAGEMENT_READER',
+  name: 'HubSpot Engagement Reader',
+  description: 'Fetch engagement records associated with a company domain',
+  configFields: [
+    {
+      name: 'companyDomain',
+      label: 'Company Domain',
+      type: 'string',
+      required: false,
+      placeholder: 'e.g., example.com'
+    },
+    {
+      name: 'engagementTypes',
+      label: 'Engagement Types',
+      type: 'multiselect',
+      required: true,
+      options: [
+        { value: 'emails', label: 'Emails' },
+        { value: 'notes', label: 'Notes' },
+        { value: 'meetings', label: 'Meetings' },
+        { value: 'other_communications', label: 'Other Communications' }
+      ],
+      placeholder: 'Select types to retrieve'
+    }
+  ],
+  ports: {
+    inputs: [
+      { id: 'input_company_domain', label: 'Company Domain', type: 'string', isActive: true, isListType: false }
+    ],
+    outputs: [] // Start with empty outputs, will be populated dynamically
+  },
+  getDynamicPorts: (config: any) => {
+    // Create outputs array - only include selected engagement types
+    const outputs = [];
+    
+    if (config.engagementTypes && Array.isArray(config.engagementTypes)) {
+      // Only add ports for selected engagement types
+      if (config.engagementTypes.includes('emails')) {
+        outputs.push({
+          id: 'output_emails',
+          label: 'Emails',
+          type: 'array',
+          isActive: true,
+          isListType: true
+        });
+      }
+      
+      if (config.engagementTypes.includes('notes')) {
+        outputs.push({
+          id: 'output_notes',
+          label: 'Notes',
+          type: 'array',
+          isActive: true,
+          isListType: true
+        });
+      }
+      
+      if (config.engagementTypes.includes('meetings')) {
+        outputs.push({
+          id: 'output_meetings',
+          label: 'Meetings',
+          type: 'array',
+          isActive: true,
+          isListType: true
+        });
+      }
+      
+      if (config.engagementTypes.includes('other_communications')) {
+        outputs.push({
+          id: 'output_other_communications',
+          label: 'Other Comms',
+          type: 'array',
+          isActive: true,
+          isListType: true
+        });
+      }
+    }
+    
+    return {
+      inputs: [
+        { id: 'input_company_domain', label: 'Company Domain', type: 'string', isActive: true, isListType: false }
+      ],
+      outputs
+    };
+  }
 }
-  // Other HubSpot actions would be defined here
+
 };

@@ -6,8 +6,6 @@ import { SLACK_ACTIONS } from "../slack/actions";
 import { AI_ACTIONS } from "../ai/actions"; // Add this import
 import { HUBSPOT_ACTIONS } from "../hubspot/actions";
 
-
-
 export interface Port {
   id: string;
   label: string;
@@ -70,7 +68,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
     id: "ai",
     name: "Use AI",
     description: "Leverage AI for your workflows",
-    icon: "/icons/ai.svg", 
+    icon: "/icons/ai.svg",
     actions: AI_ACTIONS,
     authScopes: [], // No OAuth scopes needed for OpenRouter
   },
@@ -87,12 +85,12 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "files:write",
       "files:read",
       "users:read",
-      "im:read",         
+      "im:read",
       "mpim:read",
       "channels:history",
       "canvases:read",
       "canvases:write",
-      "team:read"          
+      "team:read",
     ],
   },
   gmail: {
@@ -128,7 +126,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
     authScopes: [
       "https://www.googleapis.com/auth/spreadsheets",
       "https://www.googleapis.com/auth/spreadsheets.readonly",
-      "https://www.googleapis.com/auth/drive.readonly", 
+      "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/drive.file",
     ],
   },
@@ -144,7 +142,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "https://www.googleapis.com/auth/drive", // Full drive access
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.readonly",
-      "https://www.googleapis.com/auth/drive.metadata.readonly"
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
     ],
   },
   hubspot: {
@@ -161,7 +159,10 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "crm.objects.deals.read",
       "crm.schemas.companies.read",
       "crm.schemas.contacts.read",
-      "crm.schemas.deals.read"
+      "crm.schemas.deals.read",
+      "sales-email-read",
+      "timeline",
+      "crm.objects.custom.read",
     ],
   },
 };

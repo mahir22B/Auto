@@ -154,7 +154,6 @@ export class HubspotExecutor extends AbstractExecutor {
     }
   }
 
-  // Add this method to the HubspotExecutor class in src/lib/hubspot/executor.ts
 
   private async executeContactReader(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
     try {
@@ -246,6 +245,426 @@ export class HubspotExecutor extends AbstractExecutor {
   }
 
 
+  private normalizeDomain(domain: string): string {
+    if (!domain) return '';
+    
+    // Remove protocol if present (http://, https://)
+    let normalizedDomain = domain.replace(/^https?:\/\//, '');
+    
+    // Remove www. prefix if present
+    normalizedDomain = normalizedDomain.replace(/^www\./, '');
+    
+    // Remove trailing path, query parameters, etc.
+    normalizedDomain = normalizedDomain.split('/')[0];
+    
+    // Remove port number if present
+    normalizedDomain = normalizedDomain.split(':')[0];
+    
+    // Trim whitespace and convert to lowercase
+    normalizedDomain = normalizedDomain.trim().toLowerCase();
+    
+    return normalizedDomain;
+  }
+  
+  private async executeEngagementReader(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
+    try {
+      // Get domain from input or config
+      let companyDomain = this.getInputValueOrConfig(context, 'input_company_domain', config, 'companyDomain');
+      
+      if (!companyDomain) {
+        throw new Error("Company domain is required either via input port or configuration");
+      }
+      
+      // Normalize the domain
+      const normalizedDomain = this.normalizeDomain(companyDomain);
+      console.log(`Original domain: ${companyDomain}, Normalized: ${normalizedDomain}`);
+      
+      // Generate variants for searching
+      const domainVariants = [
+        normalizedDomain,
+        `www.${normalizedDomain}`,
+        normalizedDomain.replace(/\./g, '-')
+      ];
+      
+      console.log("Will try searching with these domain variants:", domainVariants);
+      
+      // Get selected engagement types
+      const selectedTypes = config.engagementTypes || [];
+      if (!selectedTypes.length) {
+        throw new Error("At least one engagement type must be selected");
+      }
+      
+      // Step 1: Try to find the company using a more flexible approach
+      let company = null;
+      
+      // First try: direct domain property search
+      for (const variant of domainVariants) {
+        if (company) break;
+        
+        console.log(`Trying to find company with domain: ${variant}`);
+        const searchPayload = {
+          filterGroups: [
+            {
+              filters: [
+                {
+                  propertyName: "domain",
+                  operator: "EQ",
+                  value: variant
+                }
+              ]
+            }
+          ],
+          properties: ["domain", "name", "hs_object_id"],
+          limit: 1
+        };
+        
+        const response = await this.makeHubspotRequest(
+          "crm/v3/objects/companies/search",
+          {
+            method: "POST",
+            body: JSON.stringify(searchPayload)
+          },
+          context
+        );
+        
+        if (response.results && response.results.length > 0) {
+          company = response.results[0];
+          console.log(`Found company with variant "${variant}": ${company.properties.name}`);
+        }
+      }
+      
+      // Second try: use a CONTAINS search if exact match didn't work
+      if (!company) {
+        console.log("No exact match found, trying CONTAINS search...");
+        
+        const containsPayload = {
+          filterGroups: [
+            {
+              filters: [
+                {
+                  propertyName: "domain",
+                  operator: "CONTAINS",
+                  value: normalizedDomain
+                }
+              ]
+            }
+          ],
+          properties: ["domain", "name", "hs_object_id"],
+          limit: 10
+        };
+        
+        const response = await this.makeHubspotRequest(
+          "crm/v3/objects/companies/search",
+          {
+            method: "POST",
+            body: JSON.stringify(containsPayload)
+          },
+          context
+        );
+        
+        if (response.results && response.results.length > 0) {
+          // Find the best match by comparing normalized domains
+          for (const result of response.results) {
+            const resultDomain = this.normalizeDomain(result.properties.domain);
+            console.log(`Checking result domain: "${result.properties.domain}" (normalized: "${resultDomain}")`);
+            
+            if (resultDomain === normalizedDomain) {
+              company = result;
+              console.log(`Found best match by normalized domain: ${company.properties.name}`);
+              break;
+            }
+          }
+          
+          // If no exact normalized match found, use the first result
+          if (!company) {
+            company = response.results[0];
+            console.log(`Using first result as fallback: ${company.properties.name}`);
+          }
+        }
+      }
+      
+      // If we still don't have a company, return an error
+      if (!company) {
+        return {
+          success: false,
+          error: {
+            message: `No company found with domain: ${companyDomain} (normalized: ${normalizedDomain})`,
+            details: {
+              originalDomain: companyDomain,
+              normalizedDomain: normalizedDomain,
+              variants: domainVariants
+            }
+          }
+        };
+      }
+      
+      // Continue with company found
+      const companyId = company.id;
+      console.log(`Using company: ${company.properties.name} (ID: ${companyId})`);
+      
+      // Initialize containers for engagements
+      const results: Record<string, any[]> = {};
+      
+      // Array of promises for parallel execution
+      const fetchPromises: Promise<void>[] = [];
+      
+      // Only fetch the selected engagement types
+      if (selectedTypes.includes('emails')) {
+        const emailsPromise = (async () => {
+          console.log("Fetching emails for company:", companyId);
+          const emailsEndpoint = `crm/v3/objects/emails/search`;
+          const emailsPayload = {
+            filterGroups: [
+              {
+                filters: [
+                  {
+                    propertyName: "associations.company",
+                    operator: "EQ",
+                    value: companyId
+                  }
+                ]
+              }
+            ],
+            properties: ["hs_email_direction", "hs_email_text", "hs_timestamp", "hs_email_to_email", "hs_email_from_email"],
+            limit: 100
+          };
+          
+          try {
+            const emailsResponse = await this.makeHubspotRequest(
+              emailsEndpoint,
+              {
+                method: "POST",
+                body: JSON.stringify(emailsPayload)
+              },
+              context
+            );
+            
+            // Process emails
+            if (emailsResponse.results && emailsResponse.results.length > 0) {
+              results.emails = emailsResponse.results.map(email => ({
+                from: email.properties.hs_email_from_email,
+                to: email.properties.hs_email_to_email,
+                body: email.properties.hs_email_text
+              }));
+            } else {
+              results.emails = [];
+            }
+          } catch (error) {
+            console.error("Error fetching emails:", error);
+            results.emails = [];
+          }
+        })();
+        
+        fetchPromises.push(emailsPromise);
+      }
+      
+      if (selectedTypes.includes('notes')) {
+        const notesPromise = (async () => {
+          console.log("Fetching notes for company:", companyId);
+          const notesEndpoint = `crm/v3/objects/notes/search`;
+          const notesPayload = {
+            filterGroups: [
+              {
+                filters: [
+                  {
+                    propertyName: "associations.company",
+                    operator: "EQ",
+                    value: companyId
+                  }
+                ]
+              }
+            ],
+            properties: ["hs_note_body", "hs_created_by", "hs_createdate", "hs_lastmodifieddate", "hs_attachment_ids"],
+            limit: 100
+          };
+          
+          try {
+            const notesResponse = await this.makeHubspotRequest(
+              notesEndpoint,
+              {
+                method: "POST",
+                body: JSON.stringify(notesPayload)
+              },
+              context
+            );
+            
+            // Process notes
+            if (notesResponse.results && notesResponse.results.length > 0) {
+              results.notes = notesResponse.results.map(note => ({
+                content: note.properties.hs_note_body,
+                createdBy: note.properties.hs_created_by,
+                createdDate: note.properties.hs_createdate,
+                associationType: "company",
+                lastUpdated: note.properties.hs_lastmodifieddate
+              }));
+            } else {
+              results.notes = [];
+            }
+          } catch (error) {
+            console.error("Error fetching notes:", error);
+            results.notes = [];
+          }
+        })();
+        
+        fetchPromises.push(notesPromise);
+      }
+      
+      if (selectedTypes.includes('meetings')) {
+        const meetingsPromise = (async () => {
+          console.log("Fetching meetings for company:", companyId);
+          const meetingsEndpoint = `crm/v3/objects/meetings/search`;
+          const meetingsPayload = {
+            filterGroups: [
+              {
+                filters: [
+                  {
+                    propertyName: "associations.company",
+                    operator: "EQ",
+                    value: companyId
+                  }
+                ]
+              }
+            ],
+            properties: ["hs_meeting_title", "hs_meeting_body", "hs_meeting_start_time", "hs_meeting_end_time", "hs_meeting_location", "hs_meeting_outcome"],
+            limit: 100
+          };
+          
+          try {
+            const meetingsResponse = await this.makeHubspotRequest(
+              meetingsEndpoint,
+              {
+                method: "POST",
+                body: JSON.stringify(meetingsPayload)
+              },
+              context
+            );
+            
+            // Process meetings
+            if (meetingsResponse.results && meetingsResponse.results.length > 0) {
+              results.meetings = meetingsResponse.results.map(meeting => ({
+                title: meeting.properties.hs_meeting_title,
+                startTime: meeting.properties.hs_meeting_start_time,
+                endTime: meeting.properties.hs_meeting_end_time,
+                description: meeting.properties.hs_meeting_body,
+                attendees: [], // Would require additional API calls to get attendees
+                status: meeting.properties.hs_meeting_outcome,
+                location: meeting.properties.hs_meeting_location
+              }));
+            } else {
+              results.meetings = [];
+            }
+          } catch (error) {
+            console.error("Error fetching meetings:", error);
+            results.meetings = [];
+          }
+        })();
+        
+        fetchPromises.push(meetingsPromise);
+      }
+      
+      if (selectedTypes.includes('other_communications')) {
+        const callsPromise = (async () => {
+          console.log("Fetching calls for company:", companyId);
+          const callsEndpoint = `crm/v3/objects/calls/search`;
+          const callsPayload = {
+            filterGroups: [
+              {
+                filters: [
+                  {
+                    propertyName: "associations.company",
+                    operator: "EQ",
+                    value: companyId
+                  }
+                ]
+              }
+            ],
+            properties: ["hs_call_title", "hs_call_body", "hs_call_direction", "hs_call_disposition", "hs_call_duration", "hs_timestamp"],
+            limit: 100
+          };
+          
+          try {
+            const callsResponse = await this.makeHubspotRequest(
+              callsEndpoint,
+              {
+                method: "POST",
+                body: JSON.stringify(callsPayload)
+              },
+              context
+            );
+            
+            // Process calls as part of "other communications"
+            if (callsResponse.results && callsResponse.results.length > 0) {
+              results.otherCommunications = callsResponse.results.map(call => ({
+                type: "call",
+                timestamp: call.properties.hs_timestamp,
+                duration: call.properties.hs_call_duration,
+                participants: [], // Would require additional API calls
+                outcome: call.properties.hs_call_disposition,
+                notes: call.properties.hs_call_body
+              }));
+            } else {
+              results.otherCommunications = [];
+            }
+          } catch (error) {
+            console.error("Error fetching calls:", error);
+            results.otherCommunications = [];
+          }
+        })();
+        
+        fetchPromises.push(callsPromise);
+      }
+      
+      // Wait for all selected engagement types to be fetched
+      await Promise.all(fetchPromises);
+      
+      // Build response data based on selected types
+      const responseData: Record<string, any> = {
+        companyName: company.properties.name,
+        companyDomain: company.properties.domain,
+        companyId: companyId,
+        _output_types: {}
+      };
+      
+      // Only include selected types in the response
+      if (selectedTypes.includes('emails')) {
+        responseData.output_emails = results.emails || [];
+        responseData._output_types.output_emails = 'array';
+      }
+      
+      if (selectedTypes.includes('notes')) {
+        responseData.output_notes = results.notes || [];
+        responseData._output_types.output_notes = 'array';
+      }
+      
+      if (selectedTypes.includes('meetings')) {
+        responseData.output_meetings = results.meetings || [];
+        responseData._output_types.output_meetings = 'array';
+      }
+      
+      if (selectedTypes.includes('other_communications')) {
+        responseData.output_other_communications = results.otherCommunications || [];
+        responseData._output_types.output_other_communications = 'array';
+      }
+      
+      return {
+        success: true,
+        data: responseData
+      };
+      
+    } catch (error) {
+      console.error("Error executing HubSpot Engagement Reader:", error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : "Failed to read engagements",
+          details: error
+        }
+      };
+    }
+  }
+
+
+
 async execute(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
   try {
     console.log("Executing HubSpot action:", config.action);
@@ -255,6 +674,8 @@ async execute(context: ExecutorContext, config: HubspotConfig): Promise<Executio
         return this.executeCompanyReader(context, config);
       case 'CONTACT_READER':
         return this.executeContactReader(context, config);
+      case 'ENGAGEMENT_READER':
+        return this.executeEngagementReader(context, config);
       // Add cases for other actions when implemented
       default:
         return {

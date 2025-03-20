@@ -8,6 +8,11 @@ export interface HubspotConfig {
   limit?: number;
   useList?: boolean;
   
+  // For ENGAGEMENT_READER
+  companyDomain?: string;
+  engagementTypes?: string[];
+
+  
   // For filtering (future expansion)
   filterType?: 'all' | 'recent' | 'filter';
   filterProperty?: string;
@@ -46,20 +51,83 @@ export interface HubspotCompaniesResponse {
 }
 
 export interface HubspotContact {
-    id: string;
-    properties: Record<string, any>;
-    createdAt: string;
-    updatedAt: string;
-    archived: boolean;
-  }
+  id: string;
+  properties: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  archived: boolean;
+}
   
-  export interface HubspotContactsResponse {
-    results: HubspotContact[];
-    paging?: {
-      next?: {
-        after: string;
-        link: string;
-      }
-    };
-    total?: number;
-  }
+export interface HubspotContactsResponse {
+  results: HubspotContact[];
+  paging?: {
+    next?: {
+      after: string;
+      link: string;
+    }
+  };
+  total?: number;
+}
+
+// Interfaces for Engagement types
+export interface HubspotEmail {
+  from: string;
+  to: string;
+  body: string;
+}
+
+export interface HubspotNote {
+  content: string;
+  createdBy: string;
+  createdDate: string;
+  associationType: string;
+  lastUpdated: string;
+}
+
+export interface HubspotMeeting {
+  title: string;
+  startTime: string;
+  endTime: string;
+  description: string;
+  attendees: string[];
+  status: string;
+  location: string;
+}
+
+export interface HubspotOtherCommunication {
+  type: string;
+  timestamp: string;
+  duration: string;
+  participants: string[];
+  outcome: string;
+  notes: string;
+}
+
+export interface HubspotEngagement {
+  id: string;
+  type: 'EMAIL' | 'NOTE' | 'MEETING' | 'CALL' | 'TASK';
+  properties: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HubspotEngagementsResponse {
+  results: HubspotEngagement[];
+  paging?: {
+    next?: {
+      after: string;
+      link: string;
+    }
+  };
+  total?: number;
+}
+
+export interface HubspotEngagementReaderResult {
+  emails: HubspotEmail[];
+  notes: HubspotNote[];
+  meetings: HubspotMeeting[];
+  otherCommunications: HubspotOtherCommunication[];
+  companyName?: string;
+  companyDomain?: string;
+  companyId?: string;
+}

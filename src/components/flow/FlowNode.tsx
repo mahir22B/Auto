@@ -216,7 +216,11 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
       (updates.extractList !== undefined &&
         data.service === "ai" &&
         config.action === "EXTRACT_INFORMATION") ||
-        (updates.properties && data.service === "hubspot") 
+        (updates.properties && data.service === "hubspot")  ||
+        // Add this new condition for engagement types
+        (updates.engagementTypes && 
+          data.service === "hubspot" && 
+          config.action === "ENGAGEMENT_READER")
     ) {
       if (newConfig.action && actions[newConfig.action]?.getDynamicPorts) {
         const ports = actions[newConfig.action].getDynamicPorts(newConfig);
@@ -287,7 +291,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
           (config.emailInformation || config.maxResults !== undefined)) ||
         (data.service === "ai" &&
           config.action === "EXTRACT_INFORMATION" &&
-          (config.dataFields || config.extractList !== undefined)))
+          (config.dataFields || config.extractList !== undefined))) 
     ) {
       const ports = actions[config.action].getDynamicPorts(config);
       data.updateNodeConfig({
@@ -302,6 +306,7 @@ const FlowNode = ({ id, data, isConnectable, selected }: FlowNodeProps) => {
     config.maxResults,
     config.dataFields,
     config.extractList,
+    config.engagementTypes,
     config.action,
     id,
     updateNodeInternals,
