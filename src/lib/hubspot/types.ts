@@ -142,3 +142,12 @@ export interface HubspotCompanyUpdateResult {
     success: boolean;
     errors?: any;
   }
+
+export interface HubspotContactUpdateResult {
+    contactId: string;
+    contactEmail: string;
+    contactName?: string;
+    propertiesUpdated: string[];
+    success: boolean;
+    errors?: any;
+  }

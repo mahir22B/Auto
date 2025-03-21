@@ -805,6 +805,155 @@ private async executeCompanyUpdater(context: ExecutorContext, config: HubspotCon
   }
 }
 
+// Add this method to the HubspotExecutor class in src/lib/hubspot/executor.ts
+
+private async executeContactUpdater(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
+  try {
+    // Get contact email from input or config
+    let contactEmail = this.getInputValueOrConfig(context, 'input_contact_email', config, 'contactEmail');
+    
+    if (!contactEmail) {
+      throw new Error("Contact email is required either via input port or configuration");
+    }
+    
+    if (!config.properties || config.properties.length === 0) {
+      throw new Error("At least one property must be selected for updating");
+    }
+    
+    console.log(`Executing HubSpot Contact Updater for contact email: ${contactEmail}`);
+    
+    // Step 1: Search for the contact by email
+    const searchPayload = {
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName: "email",
+              operator: "EQ",
+              value: contactEmail
+            }
+          ]
+        }
+      ],
+      properties: ["email", "firstname", "lastname", "hs_object_id"],
+      limit: 1
+    };
+    
+    console.log("Searching for contact with email:", contactEmail);
+    
+    const searchResponse = await this.makeHubspotRequest(
+      "crm/v3/objects/contacts/search",
+      {
+        method: "POST",
+        body: JSON.stringify(searchPayload)
+      },
+      context
+    );
+    
+    if (!searchResponse.results || searchResponse.results.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: `No contact found with email: ${contactEmail}`,
+          details: {
+            searchTerm: contactEmail
+          }
+        }
+      };
+    }
+    
+    // Get the contact ID and other details
+    const contact = searchResponse.results[0];
+    const contactId = contact.id;
+    const contactName = `${contact.properties.firstname || ''} ${contact.properties.lastname || ''}`.trim() || contactEmail;
+    
+    console.log(`Found contact with ID: ${contactId}, preparing to update properties`);
+    
+    // Step 2: Gather the property values to update
+    const propertiesToUpdate: Record<string, any> = {};
+    
+    // For each selected property, check if there's a value from the input port
+    for (const propertyId of config.properties) {
+      const inputPortId = `input_${propertyId}`;
+      
+      // Only include properties that have connected input data
+      if (context.inputData && context.inputData[inputPortId] !== undefined) {
+        const value = context.inputData[inputPortId];
+        propertiesToUpdate[propertyId] = value;
+        console.log(`Setting property ${propertyId} to:`, value);
+      }
+    }
+    
+    // If no properties have values, return success but indicate nothing was updated
+    if (Object.keys(propertiesToUpdate).length === 0) {
+      return {
+        success: true,
+        data: {
+          output_updated: false,
+          output_contact_id: contactId,
+          contactEmail: contactEmail,
+          contactName: contactName,
+          propertiesUpdated: [],
+          message: "No property values provided for update",
+          _output_types: {
+            output_updated: 'boolean',
+            output_contact_id: 'string'
+          }
+        }
+      };
+    }
+    
+    // Step 3: Send the update request to HubSpot
+    const updatePayload = {
+      properties: propertiesToUpdate
+    };
+    
+    console.log(`Sending update request for contact ${contactId} with properties:`, propertiesToUpdate);
+    
+    const updateResponse = await this.makeHubspotRequest(
+      `crm/v3/objects/contacts/${contactId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(updatePayload)
+      },
+      context
+    );
+    
+    console.log("Update response received:", updateResponse);
+    
+    // Generate contact URL for HubSpot UI
+    const contactUrl = `https://app.hubspot.com/contacts/contacts/${contactId}`;
+    
+    return {
+      success: true,
+      data: {
+        output_updated: true,
+        output_contact_id: contactId,
+        contactEmail: contactEmail,
+        contactName: contactName,
+        contactId: contactId,
+        contactUrl: contactUrl,
+        propertiesUpdated: Object.keys(propertiesToUpdate),
+        updatedValues: propertiesToUpdate,
+        message: `Successfully updated ${Object.keys(propertiesToUpdate).length} properties for contact "${contactName}"`,
+        _output_types: {
+          output_updated: 'boolean',
+          output_contact_id: 'string'
+        }
+      }
+    };
+  } catch (error) {
+    console.error("Error updating HubSpot contact:", error);
+    return {
+      success: false,
+      error: {
+        message: error instanceof Error ? error.message : "Failed to update contact",
+        details: error
+      }
+    };
+  }
+}
+
 
 
 async execute(context: ExecutorContext, config: HubspotConfig): Promise<ExecutionResult> {
@@ -820,6 +969,8 @@ async execute(context: ExecutorContext, config: HubspotConfig): Promise<Executio
         return this.executeEngagementReader(context, config);
       case 'COMPANY_UPDATER':
           return this.executeCompanyUpdater(context, config);  
+      case 'CONTACT_UPDATER':
+          return this.executeContactUpdater(context, config);   
       // Add cases for other actions when implemented
       default:
         return {
