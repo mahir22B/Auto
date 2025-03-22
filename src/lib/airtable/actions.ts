@@ -140,20 +140,6 @@ export const AIRTABLE_ACTIONS: Record<string, ActionConfig> = {
           }
         }
       },
-      {
-        name: 'maxRecords',
-        label: 'Maximum Records',
-        type: 'number',
-        required: false,
-        placeholder: 'Number of records to retrieve (optional)'
-      },
-      {
-        name: 'filterFormula',
-        label: 'Filter Formula',
-        type: 'text',
-        required: false,
-        placeholder: 'Airtable formula to filter records (optional)'
-      }
     ],
     ports: {
       inputs: [],
