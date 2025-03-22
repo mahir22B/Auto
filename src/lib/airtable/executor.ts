@@ -6,8 +6,7 @@ import {
   AirtableBase, 
   AirtableTable, 
   AirtableView,
-  AirtableField, 
-  AirtableRecordsResponse
+  AirtableField
 } from "./types";
 import { TokenManager } from "../auth/TokenManager";
 
@@ -51,10 +50,12 @@ export class AirtableExecutor extends AbstractExecutor {
     }
   }
 
-  // Get user's accessible bases
+  // Get user's accessible bases - using Meta API
   async getAirtableBases(tokens: any): Promise<AirtableBase[]> {
     try {
+      // Use the Meta API to get bases
       const response = await this.makeAirtableRequest('meta/bases', { method: 'GET' }, tokens);
+      console.log('Airtable bases response:', response);
       return response.bases || [];
     } catch (error) {
       console.error('Error fetching Airtable bases:', error);
@@ -62,10 +63,12 @@ export class AirtableExecutor extends AbstractExecutor {
     }
   }
 
-  // Get tables in a base
+  // Get tables in a base - using Meta API
   async getAirtableTables(tokens: any, baseId: string): Promise<AirtableTable[]> {
     try {
+      // Use the Meta API to get tables for a base
       const response = await this.makeAirtableRequest(`meta/bases/${baseId}/tables`, { method: 'GET' }, tokens);
+      console.log('Airtable tables response:', response);
       return response.tables || [];
     } catch (error) {
       console.error(`Error fetching tables for base ${baseId}:`, error);
@@ -73,29 +76,80 @@ export class AirtableExecutor extends AbstractExecutor {
     }
   }
 
-  // Get views in a table
-  async getAirtableViews(tokens: any, baseId: string, tableId: string): Promise<AirtableView[]> {
-    try {
-      const response = await this.makeAirtableRequest(
-        `meta/bases/${baseId}/tables/${tableId}/views`, 
-        { method: 'GET' }, 
-        tokens
-      );
-      return response.views || [];
-    } catch (error) {
-      console.error(`Error fetching views for table ${tableId}:`, error);
-      return [];
-    }
-  }
-
-  // Get fields in a table
+  // Get fields in a table - using Meta API for schema
   async getAirtableFields(tokens: any, baseId: string, tableId: string): Promise<AirtableField[]> {
     try {
-      const tables = await this.getAirtableTables(tokens, baseId);
-      const table = tables.find(t => t.id === tableId);
-      return table?.fields || [];
+      // Use the Meta API to get the base schema
+      const response = await this.makeAirtableRequest(`meta/bases/${baseId}/tables`, { method: 'GET' }, tokens);
+      console.log('Airtable schema response for fields:', {
+        hasTables: !!response.tables,
+        tableCount: response.tables?.length
+      });
+      
+      // Find the specific table
+      const table = response.tables.find((t: any) => t.id === tableId);
+      
+      if (!table) {
+        console.warn(`Table ${tableId} not found in base ${baseId}`);
+        return [];
+      }
+      
+      // Log table info for debugging
+      console.log('Found table:', {
+        name: table.name,
+        id: table.id,
+        fieldCount: table.fields?.length
+      });
+      
+      // Extract and return fields
+      const fields = table.fields || [];
+      
+      // Log some field data for debugging
+      if (fields.length > 0) {
+        console.log('Sample field data:', {
+          fieldName: fields[0].name,
+          fieldId: fields[0].id,
+          fieldType: fields[0].type
+        });
+      }
+      
+      console.log(`Found ${fields.length} fields in table ${tableId}`);
+      
+      return fields;
     } catch (error) {
       console.error(`Error fetching fields for table ${tableId}:`, error);
+      
+      // If Meta API fails, try to get fields from a record
+      try {
+        console.log('Trying alternative approach to get fields...');
+        
+        // Make a request to get one record from the table to infer fields
+        const recordsResponse = await this.makeAirtableRequest(
+          `${baseId}/${tableId}?maxRecords=1`, 
+          { method: 'GET' }, 
+          tokens
+        );
+        
+        if (recordsResponse.records && recordsResponse.records.length > 0) {
+          const record = recordsResponse.records[0];
+          
+          // Extract field names from the record
+          const fieldNames = Object.keys(record.fields);
+          
+          // Convert to AirtableField format
+          const inferredFields = fieldNames.map(name => ({
+            id: name,
+            name: name,
+            type: typeof record.fields[name]
+          }));
+          
+          console.log(`Inferred ${inferredFields.length} fields from record`);
+          return inferredFields;
+        }
+      } catch (fallbackError) {
+        console.error('Alternative field detection also failed:', fallbackError);
+      }
+      
       return [];
     }
   }
@@ -105,7 +159,7 @@ export class AirtableExecutor extends AbstractExecutor {
     config: AirtableConfig
   ): Promise<ExecutionResult> {
     try {
-      const { baseId, tableId, viewId, selectedFields, maxRecords, filterFormula } = config;
+      const { baseId, tableId, selectedFields, maxRecords, filterFormula } = config;
       
       if (!baseId) {
         throw new Error("Base ID is required");
@@ -119,57 +173,83 @@ export class AirtableExecutor extends AbstractExecutor {
         throw new Error("At least one field must be selected");
       }
       
-      // Build query parameters
-      const queryParams = new URLSearchParams();
-      
-      if (viewId) {
-        queryParams.append('view', viewId);
+      // Check for error placeholders
+      if (selectedFields.includes('NO_FIELDS_AVAILABLE') || selectedFields.includes('ERROR_LOADING_FIELDS')) {
+        throw new Error("Cannot execute with placeholder fields. Please select actual fields from your Airtable.");
       }
+      
+      // Build the Airtable API request parameters
+      let apiParams = '';
+      
+      // Build the query parameters as shown in the documentation
+      const queryParams = new URLSearchParams();
       
       if (maxRecords) {
         queryParams.append('maxRecords', maxRecords.toString());
+      } else {
+        // Default to 100 records if not specified
+        queryParams.append('maxRecords', '100');
       }
+      
+      // Add fields parameter to only fetch the selected fields
+      // Use the field names directly
+      selectedFields.forEach(field => {
+        // Airtable expects fields[] format
+        queryParams.append('fields[]', field);
+      });
       
       if (filterFormula) {
         queryParams.append('filterByFormula', filterFormula);
       }
       
-      // Get field information for mapping IDs to names
-      const fields = await this.getAirtableFields(context.tokens, baseId, tableId);
-      const fieldMap = new Map<string, string>();
-      fields.forEach(field => {
-        fieldMap.set(field.id, field.name);
-      });
+      // Construct the complete endpoint
+      const endpoint = `${baseId}/${tableId}?${queryParams.toString()}`;
+      console.log(`Fetching Airtable records with endpoint: ${endpoint}`);
       
-      // Fetch records
-      const endpoint = `v0/${baseId}/${tableId}?${queryParams.toString()}`;
       const response = await this.makeAirtableRequest(endpoint, { method: 'GET' }, context.tokens);
       
       if (!response.records) {
-        throw new Error("No records found in the response");
+        console.warn('No records found in Airtable response:', response);
+        return {
+          success: true,
+          data: {
+            output_records: [],
+            recordCount: 0,
+            message: 'No records found in the table'
+          }
+        };
       }
       
-      // Extract data for selected fields
-      const fieldData: Record<string, any[]> = {};
+      // Process the records to extract the selected fields
       const records = response.records;
+      console.log(`Received ${records.length} records from Airtable`);
+      
+      // Log the first record to see its structure
+      if (records.length > 0) {
+        console.log('Sample record structure:', JSON.stringify(records[0]));
+      }
+      
+      // Organize the data by field
+      const fieldData: Record<string, any[]> = {};
       
       // Initialize arrays for each selected field
-      selectedFields.forEach(fieldId => {
-        fieldData[`output_${fieldId}`] = [];
+      selectedFields.forEach(field => {
+        fieldData[`output_${field}`] = [];
       });
       
-      // Populate field data from records
+      // Extract field values from each record
       records.forEach(record => {
-        selectedFields.forEach(fieldId => {
-          const fieldName = fieldMap.get(fieldId) || fieldId;
-          fieldData[`output_${fieldId}`].push(record.fields[fieldName] || null);
+        selectedFields.forEach(field => {
+          // Get the field value, or null if not present
+          const value = record.fields[field] !== undefined ? record.fields[field] : null;
+          fieldData[`output_${field}`].push(value);
         });
       });
       
-      // Add type information for output fields
+      // Add type information
       const outputTypes: Record<string, string> = {};
-      selectedFields.forEach(fieldId => {
-        outputTypes[`output_${fieldId}`] = 'array';
+      selectedFields.forEach(field => {
+        outputTypes[`output_${field}`] = 'array';
       });
       outputTypes.output_records = 'array';
       
