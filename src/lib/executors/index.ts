@@ -8,6 +8,8 @@ import { GDocsExecutor } from '../gdocs/executor';
 import { SlackExecutor } from '../slack/executor';
 import { AIExecutor } from '../ai/executor'; 
 import { HubspotExecutor } from '../hubspot/executor';
+import { AirtableExecutor } from '../airtable/executor';
+
 
 
 
@@ -20,6 +22,7 @@ ExecutorRegistry.register('gdocs', GDocsExecutor);
 ExecutorRegistry.register('slack', SlackExecutor);
 ExecutorRegistry.register('ai', AIExecutor);
 ExecutorRegistry.register('hubspot', HubspotExecutor);
+ExecutorRegistry.register('airtable', AirtableExecutor);
 
 
 

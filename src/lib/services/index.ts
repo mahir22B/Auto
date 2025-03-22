@@ -3,8 +3,9 @@ import { GDRIVE_ACTIONS } from "../gdrive/actions";
 import { SHEETS_ACTIONS } from "../sheets/actions";
 import { GDOCS_ACTIONS } from "../gdocs/actions";
 import { SLACK_ACTIONS } from "../slack/actions";
-import { AI_ACTIONS } from "../ai/actions"; // Add this import
+import { AI_ACTIONS } from "../ai/actions";
 import { HUBSPOT_ACTIONS } from "../hubspot/actions";
+import { AIRTABLE_ACTIONS } from "../airtable/actions";
 
 export interface Port {
   id: string;
@@ -163,6 +164,18 @@ export const SERVICES: Record<string, ServiceConfig> = {
       "sales-email-read",
       "timeline",
       "crm.objects.custom.read",
+    ],
+  },
+  airtable: {
+    id: "airtable",
+    name: "Airtable",
+    description: "Manage data in Airtable bases",
+    icon: "/icons/airtable.svg",
+    actions: AIRTABLE_ACTIONS,
+    authScopes: [
+      "data.records:read",
+      "data.records:write",
+      "schema.bases:read"
     ],
   },
 };

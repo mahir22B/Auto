@@ -29,7 +29,8 @@ const nodeTypes = {
   sheets: FlowNode,
   gdocs: FlowNode,
   slack: FlowNode,
-  hubspot: FlowNode
+  hubspot: FlowNode,
+  airtable: FlowNode
 };
 
 const edgeTypes = {

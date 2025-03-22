@@ -6,7 +6,8 @@ import { SERVICES } from "@/lib/services";
 const TOKEN_ENDPOINTS = {
   google: 'https://oauth2.googleapis.com/token',
   hubspot: 'https://api.hubapi.com/oauth/v1/token',
-  slack: 'https://slack.com/api/oauth.v2.access'  // For future reference
+  slack: 'https://slack.com/api/oauth.v2.access',
+  airtable: 'https://airtable.com/oauth2/v1/token'
 };
 
 // Service-specific token refresh handlers
@@ -47,6 +48,24 @@ const refreshHandlers = {
     return response;
   },
   
+  // Airtable refresh handler
+  airtable: async (refresh_token: string): Promise<Response> => {
+    const response = await fetch(TOKEN_ENDPOINTS.airtable, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.AIRTABLE_CLIENT_ID!,
+        client_secret: process.env.AIRTABLE_CLIENT_SECRET!,
+        refresh_token: refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
+    
+    return response;
+  },
+  
   // Placeholder for Slack - implement if needed
   slack: async (refresh_token: string): Promise<Response> => {
     throw new Error('Slack token refresh not implemented yet');
@@ -54,11 +73,13 @@ const refreshHandlers = {
 };
 
 // Determine service type from service ID
-const getServiceType = (service: string): 'google' | 'hubspot' | 'slack' => {
+const getServiceType = (service: string): 'google' | 'hubspot' | 'slack' | 'airtable' => {
   if (service === 'hubspot') {
     return 'hubspot';
   } else if (service === 'slack') {
     return 'slack';
+  } else if (service === 'airtable') {
+    return 'airtable';
   }
   // Default to Google for all Google services (gmail, gdrive, sheets, etc.)
   return 'google';

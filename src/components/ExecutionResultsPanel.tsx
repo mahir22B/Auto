@@ -1202,6 +1202,18 @@ const renderHubspotUpdaterResults = (nodeId: string, result: any, entityType: 'c
                        height="24"
                      />
                    </div>
+                   
+                  )}
+                  {node.type === "hubspot" && (
+                     <div className="mr-3 text-purple-600">
+                     <img
+                       src="/icons/hubspot.svg"
+                       alt="AI"
+                       width="24"
+                       height="24"
+                     />
+                   </div>
+
                   )}
                   <div>
                     <h3 className="text-lg font-medium">
